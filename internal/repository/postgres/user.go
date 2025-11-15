@@ -1,0 +1,54 @@
+package postgres
+
+import (
+	"context"
+	"time"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
+	"github.com/google/uuid"
+)
+
+type UserRepo struct {
+	db *DB
+}
+
+func NewUserRepo(db *DB) *UserRepo {
+	return &UserRepo{db: db}
+}
+
+func (r *UserRepo) Create(ctx context.Context, user *model.User) error {
+	query := `
+		INSERT INTO users (email, password_hash, full_name, is_active, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id`
+	
+	now := time.Now()
+	user.CreatedAt = now
+	user.UpdatedAt = now
+	
+	return r.db.pool.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FullName, user.IsActive, user.CreatedAt, user.UpdatedAt).Scan(&user.ID)
+}
+
+func (r *UserRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.User, error) {
+	query := `SELECT id, email, password_hash, full_name, is_active, created_at, updated_at FROM users WHERE id = $1`
+	
+	user := &model.User{}
+	err := r.db.pool.QueryRow(ctx, query, id).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.FullName, &user.IsActive, &user.CreatedAt, &user.UpdatedAt)
+	return user, err
+}
+
+func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*model.User, error) {
+	query := `SELECT id, email, password_hash, full_name, is_active, created_at, updated_at FROM users WHERE email = $1`
+	
+	user := &model.User{}
+	err := r.db.pool.QueryRow(ctx, query, email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.FullName, &user.IsActive, &user.CreatedAt, &user.UpdatedAt)
+	return user, err
+}
+
+func (r *UserRepo) Update(ctx context.Context, user *model.User) error {
+	query := `UPDATE users SET email = $2, password_hash = $3, full_name = $4, is_active = $5, updated_at = $6 WHERE id = $1`
+	
+	user.UpdatedAt = time.Now()
+	_, err := r.db.pool.Exec(ctx, query, user.ID, user.Email, user.PasswordHash, user.FullName, user.IsActive, user.UpdatedAt)
+	return err
+}

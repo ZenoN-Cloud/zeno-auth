@@ -2,11 +2,13 @@ package app
 
 import (
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/rs/zerolog/log"
 )
 
 type App struct {
 	cfg *config.Config
+	db  *postgres.DB
 }
 
 func New() (*App, error) {
@@ -19,7 +21,12 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	return &App{cfg: cfg}, nil
+	db, err := postgres.New(cfg.Database.URL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &App{cfg: cfg, db: db}, nil
 }
 
 func (a *App) Run() error {
@@ -28,6 +35,12 @@ func (a *App) Run() error {
 		Str("env", a.cfg.Env).
 		Msg("Zeno Auth service starting")
 
-	// TODO: Initialize database and HTTP server
+	// TODO: Initialize HTTP server
 	return nil
+}
+
+func (a *App) Close() {
+	if a.db != nil {
+		a.db.Close()
+	}
 }
