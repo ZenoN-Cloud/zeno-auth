@@ -7,8 +7,8 @@ import (
 )
 
 func SetupRouter(
-	authService *service.AuthService,
-	userService *service.UserService,
+	authService service.AuthServiceInterface,
+	userService service.UserServiceInterface,
 	jwtManager *token.JWTManager,
 ) *gin.Engine {
 	r := gin.New()

@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -72,24 +73,24 @@ func (p *PasswordManager) generateSalt() ([]byte, error) {
 }
 
 func (p *PasswordManager) decodeHash(encodedHash string) (salt, hash []byte, err error) {
-	var version int
-	var memory, iterations uint32
-	var parallelism uint8
-	var saltStr, hashStr string
-
-	_, err = fmt.Sscanf(encodedHash, "$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s", &version, &memory, &iterations, &parallelism, &saltStr, &hashStr)
-	if err != nil {
-		return nil, nil, err
+	parts := strings.Split(encodedHash, "$")
+	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" {
+		return nil, nil, fmt.Errorf("invalid hash format")
 	}
 
-	salt, err = base64.RawStdEncoding.DecodeString(saltStr)
+	// parts[2] is version (v=19)
+	// parts[3] is parameters (m=65536,t=3,p=2)
+	// parts[4] is salt
+	// parts[5] is hash
+
+	salt, err = base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to decode salt: %w", err)
 	}
 
-	hash, err = base64.RawStdEncoding.DecodeString(hashStr)
+	hash, err = base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to decode hash: %w", err)
 	}
 
 	return salt, hash, nil

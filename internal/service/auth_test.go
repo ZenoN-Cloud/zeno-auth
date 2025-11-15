@@ -6,6 +6,7 @@ import (
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -57,7 +58,7 @@ func TestAuthService_Register(t *testing.T) {
 	passwordHasher := &MockPasswordHasher{}
 	
 	// Mock no existing user
-	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, assert.AnError)
+	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, pgx.ErrNoRows)
 	passwordHasher.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)
 	userRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
