@@ -59,7 +59,12 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 		orgs = append(orgs, org)
 	}
 
-	return orgs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Return empty slice if no organizations found (not an error)
+	return orgs, nil
 }
 
 func (r *OrganizationRepo) Update(ctx context.Context, org *model.Organization) error {
