@@ -106,13 +106,13 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", ErrInvalidCredentials
 	}
 
-	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
-	if err != nil {
-		return "", "", err
-	}
-
+	// Organization is optional - users can exist without organizations
 	var orgID uuid.UUID
 	var roles []string
+	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return "", "", err
+	}
 	if len(orgs) > 0 {
 		orgID = orgs[0].ID
 		membership, err := s.membershipRepo.GetByUserAndOrg(ctx, user.ID, orgID)
@@ -151,12 +151,14 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr string) 
 		return "", ErrInvalidCredentials
 	}
 
-	membership, err := s.membershipRepo.GetByUserAndOrg(ctx, refreshToken.UserID, refreshToken.OrgID)
-	if err != nil {
-		return "", err
+	// Get roles if user has organization membership
+	var roles []string
+	if refreshToken.OrgID != uuid.Nil {
+		membership, err := s.membershipRepo.GetByUserAndOrg(ctx, refreshToken.UserID, refreshToken.OrgID)
+		if err == nil {
+			roles = []string{string(membership.Role)}
+		}
 	}
-
-	roles := []string{string(membership.Role)}
 	return s.jwtManager.Generate(ctx, refreshToken.UserID, refreshToken.OrgID, roles, s.config.AccessTokenTTL)
 }
 
