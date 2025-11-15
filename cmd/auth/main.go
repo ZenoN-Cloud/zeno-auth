@@ -1,10 +1,17 @@
 package main
 
 import (
-	"log"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/app"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	log.Println("Zeno Auth service starting...")
-	// TODO: Initialize configuration, database, and HTTP server
+	app, err := app.New()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create app")
+	}
+
+	if err := app.Run(); err != nil {
+		log.Fatal().Err(err).Msg("Failed to run app")
+	}
 }
