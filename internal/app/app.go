@@ -1,14 +1,20 @@
 package app
 
 import (
+	"context"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/rs/zerolog/log"
 )
 
 type App struct {
-	cfg *config.Config
-	db  *postgres.DB
+	cfg             *config.Config
+	db              *postgres.DB
+	jwtManager      *token.JWTManager
+	refreshManager  *token.RefreshManager
+	passwordManager *token.PasswordManager
 }
 
 func New() (*App, error) {
@@ -26,10 +32,21 @@ func New() (*App, error) {
 		return nil, err
 	}
 
-	return &App{cfg: cfg, db: db}, nil
+	jwtManager, err := token.NewJWTManager(cfg.JWT.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &App{
+		cfg:             cfg,
+		db:              db,
+		jwtManager:      jwtManager,
+		refreshManager:  token.NewRefreshManager(),
+		passwordManager: token.NewPasswordManager(),
+	}, nil
 }
 
-func (a *App) Run() error {
+func (a *App) Run(ctx context.Context) error {
 	log.Info().
 		Str("port", a.cfg.Server.Port).
 		Str("env", a.cfg.Env).
