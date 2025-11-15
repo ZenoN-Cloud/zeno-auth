@@ -22,13 +22,13 @@ func main() {
 		cancel()
 	}()
 
-	app, err := app.New()
+	application, err := app.New()
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to create app")
 	}
-	defer app.Close()
+	defer application.Close()
 
-	if err := app.Run(ctx); err != nil {
+	if err := application.Run(ctx); err != nil {
 		log.Fatal().Err(err).Msg("Failed to run app")
 	}
 }

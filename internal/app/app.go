@@ -3,10 +3,11 @@ package app
 import (
 	"context"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
-	"github.com/rs/zerolog/log"
 )
 
 type App struct {
