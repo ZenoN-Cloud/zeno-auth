@@ -16,22 +16,27 @@ func SetupRouter(
 	r.Use(CORSMiddleware())
 	r.Use(gin.Recovery())
 
-	authHandler := NewAuthHandler(authService)
-	userHandler := NewUserHandler(userService)
-	jwksHandler := NewJWKSHandler(jwtManager)
-
+	// Always add health endpoint
 	r.GET("/health", Health)
-	r.GET("/jwks", jwksHandler.GetJWKS)
 
-	auth := r.Group("/auth")
-	{
-		auth.POST("/register", authHandler.Register)
-		auth.POST("/login", authHandler.Login)
-		auth.POST("/refresh", authHandler.Refresh)
-		auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
+	// Only add other endpoints if services are available
+	if authService != nil && userService != nil && jwtManager != nil {
+		authHandler := NewAuthHandler(authService)
+		userHandler := NewUserHandler(userService)
+		jwksHandler := NewJWKSHandler(jwtManager)
+
+		r.GET("/jwks", jwksHandler.GetJWKS)
+
+		auth := r.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/refresh", authHandler.Refresh)
+			auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
+		}
+
+		r.GET("/me", AuthMiddleware(jwtManager), userHandler.GetProfile)
 	}
-
-	r.GET("/me", AuthMiddleware(jwtManager), userHandler.GetProfile)
 
 	return r
 }
