@@ -18,6 +18,7 @@ func SetupRouter(
 
 	// Always add health endpoint
 	r.GET("/health", Health)
+	r.GET("/debug", Debug)
 
 	// Only add other endpoints if services are available
 	if authService != nil && userService != nil && jwtManager != nil {
