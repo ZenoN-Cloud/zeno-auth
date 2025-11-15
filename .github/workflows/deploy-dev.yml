@@ -1,0 +1,70 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches: [main]
+
+env:
+  PROJECT_ID: zenon-cloud-dev-001
+  REGION: europe-west3
+  SERVICE: zeno-auth-dev
+  REGISTRY: europe-west3-docker.pkg.dev
+  REPOSITORY: zeno-auth-repo
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+        service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker
+      run: gcloud auth configure-docker ${{ env.REGISTRY }}
+
+    - name: Build Docker image
+      run: |
+        docker build -t ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/zeno-auth:${{ github.sha }} .
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/zeno-auth:${{ github.sha }}
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy ${{ env.SERVICE }} \
+          --image=${{ env.REGISTRY }}/${{ env.PROJECT_ID }}/${{ env.REPOSITORY }}/zeno-auth:${{ github.sha }} \
+          --platform=managed \
+          --region=${{ env.REGION }} \
+          --service-account=zeno-auth-dev@${{ env.PROJECT_ID }}.iam.gserviceaccount.com \
+          --add-cloudsql-instances=${{ env.PROJECT_ID }}:${{ env.REGION }}:zenon-dev-sql \
+          --set-secrets=DATABASE_URL=zeno-auth-db-dsn:latest \
+          --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
+          --set-env-vars=ENV=dev \
+          --set-env-vars=PORT=8080 \
+          --allow-unauthenticated \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=3 \
+          --concurrency=80 \
+          --timeout=60
+
+    - name: Smoke test
+      run: |
+        SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE }} --region=${{ env.REGION }} --format='value(status.url)')
+        curl -f $SERVICE_URL/health || exit 1
