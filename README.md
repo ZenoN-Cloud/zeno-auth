@@ -15,3 +15,4 @@ This service is responsible for:
   - [Zeno Docs](https://github.com/ZenoN-Cloud/zeno-docs)
   - [Zeno ID Docs](https://github.com/ZenoN-Cloud/zeno-id-docs)
 # Test deployment
+# Updated DATABASE_URL format
