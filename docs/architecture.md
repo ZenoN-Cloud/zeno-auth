@@ -1,332 +1,435 @@
-# Zeno Auth – Architecture
+# 📘 Zeno Auth — Architecture (Revised, Production Grade)
 
 Core authentication and identity service for the **ZenoN-Cloud** platform.
+This document serves as the authoritative reference for:
 
-This document describes the architecture, data model, token model and integration patterns for the `zeno-auth` service. It is the single source of truth for how authentication and identity work across the ZenoN-Cloud ecosystem.
+* architecture & platform boundaries
+* data model
+* token model
+* deployment model (GCP: Cloud Run, Cloud SQL, Secret Manager)
+* service accounts & access control
+* storage model
+* CI/CD pipeline (GitHub Actions)
+* environment strategy (dev → prod)
+* security posture
+* future expansion plans
 
----
-
-## 1. Role of Zeno Auth in the platform
-
-### 1.1 Responsibilities
-
-`zeno-auth` is responsible for:
-
-- User accounts:
-    - registration and login
-    - password management
-    - account activation/deactivation
-- Organizations (tenants):
-    - creation of organizations
-    - ownership and membership
-    - role-based access at organization level
-- Authentication:
-    - issuing access and refresh tokens
-    - validating credentials
-- Identity boundary:
-    - providing a single source of truth for user identity
-    - exposing identity information to other services in a controlled way
-
-### 1.2 Non-responsibilities
-
-`zeno-auth` explicitly **does not**:
-
-- store or process business documents (bank statements, invoices, identity documents)
-- implement business rules of `zeno-docs` or `zeno-id-docs`
-- manage billing or subscription plans
-- serve as an API gateway
-
-Those concerns belong to other services:
-
-- Financial documents: [Zeno Docs](https://github.com/ZenoN-Cloud/zeno-docs)
-- Identity documents: [Zeno ID Docs](https://github.com/ZenoN-Cloud/zeno-id-docs)
-- Infrastructure: [Zeno Infra](https://github.com/ZenoN-Cloud/zeno-infra)
+This specification must be kept up to date whenever platform architecture evolves.
 
 ---
 
-## 2. High-level overview
+# 1. Purpose & Scope
 
-ZenoN-Cloud is a multi-tenant SaaS platform. Each tenant is an **organization** (customer). Users can belong to one or more organizations with different roles.
+`zeno-auth` provides:
 
-`zeno-auth` sits at the center of the platform:
+* authentication
+* identity
+* organization management
+* authorization metadata
+* token issuing (JWT + refresh)
+* introspection & identity boundaries
 
-- It owns the **global user identity** (`users` table).
-- It owns **organizations** and **memberships**.
-- It issues **JWT access tokens** that other services validate.
-- It issues and stores **refresh tokens** for session management.
+It is the **central identity provider** for the entire ZenoN-Cloud ecosystem.
 
-Other services (e.g. `zeno-docs`, `zeno-id-docs`) trust `zeno-auth` via:
-
-- public signing keys (for validating JWTs)
-- optional service-to-service calls (e.g. `/me`, `/introspect`) if needed later
-
----
-
-## 3. Data model
-
-### 3.1 Users
-
-Represents a human user of the platform.
-
-**Table: `users`**
-
-Required fields:
-
-- `id` (UUID, PK)
-- `email` (unique, indexed, lower-cased)
-- `password_hash` (Argon2id / bcrypt hash, never store raw password)
-- `full_name` (optional)
-- `is_active` (bool, default: true)
-- `created_at` (timestamp with time zone)
-- `updated_at` (timestamp with time zone)
-
-Constraints & notes:
-
-- `email` must be unique.
-- Users exist independently of organizations (a user can join multiple orgs).
-- Deactivating a user (`is_active = false`) prevents login and token issuing.
+It is *not* a gateway, document processor, billing engine, or storage system.
 
 ---
 
-### 3.2 Organizations
+# 2. Environment Overview
 
-Represents a customer account / tenant (company, business, team).
+The ZenoN-Cloud platform uses a strict separation between:
 
-**Table: `organizations`**
+* **zenon-cloud-dev-001** → developer/staging infrastructure
+* **zenon-cloud-prod-001** → production infrastructure
 
-Fields:
+Both environments mirror the same structure:
 
-- `id` (UUID, PK)
-- `name` (string, required)
-- `owner_user_id` (UUID, FK → `users.id`)
-- `status` (enum: `active`, `trial`, `suspended`; default: `active`)
-- `created_at` (timestamp with time zone)
-- `updated_at` (timestamp with time zone)
+```
+Cloud SQL (Postgres 17)
+│
+├─ zeno_auth (database)
+├─ zeno-docs buckets
+└─ zeno-id-docs buckets
+```
 
-Notes:
+Service Accounts exist separately per environment:
 
-- `owner_user_id` is the initial owner when the organization is created.
-- Ownership is also reflected via `org_memberships` with role `OWNER`.
-- The `status` field can later be used for billing and account control.
+```
+zeno-auth-dev
+zeno-docs-dev
+zeno-id-docs-dev
 
----
+zeno-auth-prod
+zeno-docs-prod
+zeno-id-docs-prod
+```
 
-### 3.3 Organization memberships
+Secrets exist separately per environment:
 
-Many-to-many relation between users and organizations with an explicit role.
-
-**Table: `org_memberships`**
-
-Fields:
-
-- `id` (UUID, PK)
-- `user_id` (UUID, FK → `users.id`)
-- `org_id` (UUID, FK → `organizations.id`)
-- `role` (enum: `OWNER`, `ADMIN`, `MEMBER`, `VIEWER`)
-- `is_active` (bool, default: true)
-- `created_at` (timestamp with time zone)
-
-Constraints:
-
-- Unique `(user_id, org_id)` pair (a user can have only one membership per org).
-- At least one `OWNER` per organization is required (enforced at business level).
-
-Semantics:
-
-- `OWNER` – full control, can manage org settings and members.
-- `ADMIN` – manage members and configuration, but not billing/legal (future).
-- `MEMBER` – regular user with standard access.
-- `VIEWER` – read-only access (analytics, reports, dashboards).
+```
+zeno-auth-db-dsn (dev)
+zeno-auth-db-dsn (prod)
+```
 
 ---
 
-### 3.4 Refresh tokens
+# 3. Deployment Model (GCP)
 
-Refresh tokens allow long-lived sessions without keeping access tokens alive for too long.
+### 3.1 Runtime
 
-**Table: `refresh_tokens`**
+`zeno-auth` runs on **Cloud Run** (fully serverless):
 
-Fields:
+* auto-scaling
+* minimal ops overhead
+* integrates with Cloud SQL via Unix Sockets
+* pulls secrets from Secret Manager
+* uses service accounts to enforce access boundaries
 
-- `id` (UUID, PK)
-- `user_id` (UUID, FK → `users.id`)
-- `org_id` (UUID, FK → `organizations.id`, represents active org for this session)
-- `token_hash` (string, hash of the refresh token)
-- `user_agent` (string, optional – for UX and security logs)
-- `ip_address` (string, optional)
-- `created_at` (timestamp with time zone)
-- `expires_at` (timestamp with time zone)
-- `revoked_at` (timestamp with time zone, nullable)
+### 3.2 Required GCP Services
 
-Important rules:
+* Artifact Registry (`zenon-cloud-dev-001` / `zenon-cloud-prod-001`)
+* Cloud Run
+* Secret Manager
+* Cloud SQL Admin API
+* IAM
+* Cloud Logging
 
-- The raw refresh token **is never stored**. Only `token_hash` is persisted.
-- On refresh, we:
-    - hash the provided token,
-    - look up by `token_hash`,
-    - check `expires_at` and `revoked_at`.
-- Revoking all sessions for a user = setting `revoked_at` for all refresh tokens of that user.
+All services must be explicitly enabled.
 
 ---
 
-### 3.5 Future entities (not implemented yet)
+# 4. Data Model
 
-Planned but not required for initial MVP:
+### 4.1 Users Table
 
-- `api_keys` – organization-level access keys for external integrations.
-- `audit_log` – security/audit events (may live in a separate `audit` service).
+(unchanged, but strictly enforced through migrations)
 
----
+```
+users:
+  id UUID (PK)
+  email TEXT unique, lowercased
+  password_hash TEXT
+  full_name TEXT
+  is_active BOOLEAN
+  created_at TIMESTAMP
+  updated_at TIMESTAMP
+```
 
-## 4. Token model
+### 4.2 Organizations Table
 
-`zeno-auth` uses a **dual-token** approach:
+```
+organizations:
+  id UUID (PK)
+  name TEXT
+  owner_user_id UUID (FK → users.id)
+  status ENUM(active, trial, suspended)
+  created_at TIMESTAMP
+  updated_at TIMESTAMP
+```
 
-- Short-lived **access tokens** (JWT).
-- Long-lived **refresh tokens** (opaque strings).
+### 4.3 org_memberships Table
 
-### 4.1 Access tokens
+```
+org_memberships:
+  id UUID
+  user_id UUID
+  org_id UUID
+  role ENUM(OWNER, ADMIN, MEMBER, VIEWER)
+  is_active BOOLEAN
+  created_at TIMESTAMP
+  UNIQUE(user_id, org_id)
+```
 
-Format: **JWT (JSON Web Token)**
+### 4.4 refresh_tokens Table
 
-- Signed with an asymmetric key pair (e.g. RSA / ES256).
-- Private key is stored and used **only** by `zeno-auth`.
-- Public key is exposed to other services (e.g. via `/jwks` endpoint).
-
-Typical lifetime: `15–30 minutes`.
-
-**Standard claims:**
-
-- `iss` – issuer, e.g. `zeno-auth`
-- `sub` – user id (UUID from `users.id`)
-- `aud` – intended audience (`zeno-docs`, `zeno-id-docs`, or generic `zenon-cloud`)
-- `iat` – issued at
-- `exp` – expiration time
-- `jti` – unique token id
-
-**Custom claims:**
-
-- `org` – active organization id (UUID from `organizations.id`)
-- `roles` – list of roles for this user in this organization (e.g. `["OWNER"]`)
-
-Other services (`zeno-docs`, `zeno-id-docs`) use the token as follows:
-
-1. Validate signature using the public key.
-2. Verify `exp` and optionally `aud`.
-3. Read `sub` (user id), `org` (organization), `roles` (authorization).
-4. Decide whether the requested operation is allowed.
-
-`zeno-auth` is **not called** on every request – JWT validation is local to each service.
-
----
-
-### 4.2 Refresh tokens
-
-Refresh tokens:
-
-- are opaque, random strings (e.g. 256-bit random).
-- are stored only on the client side (e.g. HTTP-only cookie or secure storage).
-- are hashed and stored in the `refresh_tokens` table.
-
-Typical lifetime: `7–30 days` (configurable per environment).
-
-Flow:
-
-1. Client sends `refresh_token` to `/auth/refresh`.
-2. `zeno-auth` hashes it and looks up `refresh_tokens.token_hash`.
-3. If found and:
-    - not expired,
-    - not revoked,
-    - user and membership are still active,
-      then:
-    - issues a new access token,
-    - optionally rotates refresh token (issues a new one and revokes the old).
-
-This allows:
-
-- logout from a single device (delete one refresh token),
-- logout from everywhere (delete all refresh tokens for the user).
+```
+refresh_tokens:
+  id UUID
+  user_id UUID
+  org_id UUID
+  token_hash TEXT
+  user_agent TEXT
+  ip_address TEXT
+  created_at TIMESTAMP
+  expires_at TIMESTAMP
+  revoked_at TIMESTAMP nullable
+```
 
 ---
 
-## 5. Core flows
+# 5. Token Model
 
-### 5.1 Registration flow
+### Access Token (JWT)
 
-1. User submits email + password (+ optional organization name) to `/auth/register`.
-2. `zeno-auth`:
-    - creates `users` row,
-    - creates `organizations` row (if this is the first org),
-    - creates `org_memberships` with role `OWNER`,
-    - creates a refresh token entry,
-    - issues an access token + refresh token.
-3. Client stores the refresh token securely and uses the access token for API calls.
+* signed with asymmetric keys (RSA or ES256)
+* private key inside `zeno-auth` only
+* public JWKS exposed at `/jwks`
 
-### 5.2 Login flow
+Claims:
 
-1. User submits `email + password` to `/auth/login`.
-2. `zeno-auth`:
-    - finds the user by email,
-    - verifies `password_hash`,
-    - selects default / active organization (if user has multiple orgs),
-    - creates a new refresh token,
-    - issues access token + refresh token pair.
-3. Client continues as in the registration flow.
+```
+sub: user_id
+org: active_org_id
+roles: ["OWNER", "ADMIN", ...]
+exp, iat, iss
+aud: "zenon-cloud"
+```
 
-### 5.3 Accessing other services (`zeno-docs`, `zeno-id-docs`)
+### Refresh Token
 
-1. Frontend includes header:  
-   `Authorization: Bearer <access_token>`
-2. The target service:
-    - validates the JWT,
-    - extracts `sub`, `org`, `roles`,
-    - applies its own authorization rules.
-3. No call to `zeno-auth` is needed in the happy path.
+* opaque 256-bit random string
+* stored only as hash
+* rotation supported
+* used to issue fresh JWT
 
 ---
 
-## 6. Integration with other services
+# 6. Secrets & Key Management
 
-### 6.1 Zeno Docs
+Secrets stored in **Secret Manager**:
 
-`zeno-docs` consumes:
+```
+zeno-auth-db-dsn  → DSN for Cloud SQL (dev)
+zeno-auth-db-dsn  → DSN for Cloud SQL (prod)
+```
 
-- user id (`sub`)
-- organization id (`org`)
-- roles (`roles`) to decide:
-    - who can upload documents,
-    - who can manage integrations and mappings.
+JWT private key:
 
-`zeno-docs` never stores passwords or handles login. It only trusts JWTs issued by `zeno-auth`.
-
-### 6.2 Zeno ID Docs
-
-`zeno-id-docs` consumes:
-
-- `sub`, `org`, `roles` from the JWT,
-- uses them to control who can:
-    - upload identity documents,
-    - view verification results.
-
-It never stores credential data – only document verification state and minimal identity attributes needed for business logic.
+* stored **only** inside `zeno-auth` container (mounted from Secret Manager later)
+* rotated manually or via automated rotation job
+* public key available via `/jwks` endpoint
 
 ---
 
-## 7. Security considerations
+# 7. IAM & Access Boundaries
 
-- Passwords are stored only as strong hashes (no plaintext, no reversible encryption).
-- Refresh tokens are stored only as hashes.
-- Access tokens are short-lived and signed with an asymmetric key.
-- Services never accept tokens that fail signature or expiry validation.
-- Sensitive operations (e.g. managing organizations, members, security settings) require elevated roles (`OWNER` or `ADMIN`).
+### 7.1 zeno-auth-dev permissions
+
+* `roles/cloudsql.client`
+* `roles/secretmanager.secretAccessor`
+* (future) `roles/run.invoker` for internal calls
+
+### 7.2 zeno-docs-dev permissions
+
+* access to bucket:
+
+    * `gs://zenon-dev-docs-raw`
+    * role: `roles/storage.objectAdmin`
+
+### 7.3 zeno-id-docs-dev permissions
+
+* access to bucket:
+
+    * `gs://zenon-dev-id-raw`
+    * role: `roles/storage.objectAdmin`
+
+### 7.4 Principle of Least Privilege
+
+Every service account receives **only** the permissions required for its function.
 
 ---
 
-## 8. Future extensions
+# 8. Repository Structure
 
-Planned future work for `zeno-auth`:
+```
+zeno-auth/
+│
+├─ cmd/auth/              # main entrypoint
+├─ internal/
+│   ├─ config/            # config loading, env & secrets
+│   ├─ handler/           # HTTP endpoints
+│   ├─ service/           # business logic
+│   ├─ repository/        # DB queries (pgx)
+│   ├─ model/             # domain models
+│   └─ token/             # JWT + refresh handling
+│
+├─ migrations/            # SQL migrations (goose / migrate)
+├─ api/proto/             # reserved for service boundary
+│
+├─ Dockerfile
+├─ Makefile
+├─ go.mod
+└─ docs/
+    └─ architecture.md    # this document
+```
 
-- Organization-level API keys with scoped permissions.
-- Email verification and password reset flows.
-- Audit trail of security-sensitive events (possibly via a dedicated `audit` service).
-- Organization invitations (inviting users by email to join an existing organization).
+---
+
+# 9. Environment Variables
+
+Cloud Run injects:
+
+```
+DATABASE_URL=secret://zeno-auth-db-dsn
+PORT=8080
+JWT_PRIVATE_KEY=secret://zeno-auth-private-key   (future)
+ENV=dev|prod
+```
+
+Local development uses `.env` instead.
+
+---
+
+# 10. Migration Workflow
+
+Migrations stored in `migrations/`.
+
+### Dev:
+
+1. Apply automatically on `zeno-auth` startup
+   or
+2. Apply via GitHub Actions during deployment:
+
+```
+migrate -path=migrations -database=$DATABASE_URL up
+```
+
+### Prod:
+
+* manual approval step
+* migrations run before rolling deploy
+* Cloud Run only receives traffic after successful migration
+
+---
+
+# 11. Build & Deploy (CI/CD)
+
+## GitHub Actions Pipeline (.github/workflows/deploy.yml)
+
+### Steps:
+
+1. **Trigger:**
+
+    * push to `main` → deploy to `dev`
+    * tag `v*.*.*` → deploy to `prod`
+
+2. **Build container:**
+
+   ```
+   docker build -t europe-west3-docker.pkg.dev/$DEV_PROJECT/zeno-auth/zeno-auth:$GIT_SHA .
+   ```
+
+3. **Push to Artifact Registry:**
+
+   ```
+   gcloud auth configure-docker
+   docker push europe-west3-docker.pkg.dev/$DEV_PROJECT/zeno-auth/zeno-auth:$GIT_SHA
+   ```
+
+4. **Run migrations** (dev only, prod requires manual approval):
+
+   ```
+   migrate up
+   ```
+
+5. **Deploy to Cloud Run:**
+
+   ```
+   gcloud run deploy zeno-auth \
+     --image=europe-west3-docker.pkg.dev/$DEV_PROJECT/zeno-auth/zeno-auth:$GIT_SHA \
+     --platform=managed \
+     --region=europe-west3 \
+     --service-account=zeno-auth-dev@$DEV_PROJECT.iam.gserviceaccount.com \
+     --add-cloudsql-instances=$DEV_PROJECT:europe-west3:zenon-dev-sql \
+     --set-secrets=DATABASE_URL=zeno-auth-db-dsn:latest \
+     --allow-unauthenticated \
+     --memory=512Mi \
+     --cpu=1
+   ```
+
+6. **Smoke test:**
+
+   ```
+   curl https://zeno-auth-.../health
+   ```
+
+---
+
+# 12. API Boundary
+
+Endpoints (MVP):
+
+```
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+GET  /me
+GET  /jwks
+```
+
+Strict separation:
+
+* No document uploads
+* No KYC processing
+* No accounting logic
+
+---
+
+# 13. Service-to-Service Integration
+
+### `zeno-docs` & `zeno-id-docs` consume:
+
+* JWT tokens validated locally
+* org id from claim
+* roles from claim
+* user id from claim
+
+Future optional API:
+
+```
+GET /introspect
+```
+
+But not required for normal operation.
+
+---
+
+# 14. Security Posture
+
+* Argon2id for password hashing
+* never store refresh tokens raw
+* short JWT lifetime
+* long refresh lifetime with rotation
+* asymmetric signing keys
+* never pass secrets as environment variables inside GitHub Actions logs
+* only deploy from GitHub Actions via OIDC (no store of GCP credentials)
+* strict IAM boundaries
+* Cloud SQL uses private socket connection (no public IP)
+
+---
+
+# 15. Future Extensions
+
+* API keys for integrations
+* Billing integration
+* Organization invitations
+* MFA support
+* Passwordless login (email magic link)
+* Audit log service integration
+* Service Mesh (future when number of services grows)
+
+---
+
+# ✔ Summary
+
+This document describes:
+
+* what `zeno-auth` is
+* what data it owns
+* how tokens work
+* how it integrates with the rest of ZenoN-Cloud
+* how it is deployed
+* how it is secured
+* how CI/CD operates
+* how dev/prod separation works
+* how GCP resources are structured
+
+---
+
+Макс, брат, если хочешь — могу:
+
+* перенести всё в Markdown с красивым форматированием (таблицы, блоки, списки)
+* добавить PlantUML диаграммы
+* добавить sequence diagrams для login/refresh
+* собрать полноценный onboarding документ для нового инженера
