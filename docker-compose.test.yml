@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: zeno_auth_test
+      POSTGRES_USER: zeno_auth
+      POSTGRES_PASSWORD: testpassword
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zeno_auth -d zeno_auth_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  zeno-auth-test:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://zeno_auth:testpassword@postgres:5432/zeno_auth_test?sslmode=disable
+      PORT: 8080
+      ENV: test
+      JWT_PRIVATE_KEY: |
+        -----BEGIN PRIVATE KEY-----
+        MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCaQw2lgMIhTyw4
+        PCQqiQPLLJZwz4DLhKnglRV6iZiRWB23vmcSQWpD2z+9H5YbybbtA25NfgV+YteB
+        k0HskFN4F1UFySsCx1RQweWSrjUUzB+rEshdJXtJL5FwojHWkoVPd+6vHSED+5vt
+        Nfeh+oxMvbuRAJlxJdK2T99qklUjLOTSyPCx9tNJ06gutylbhOzwwMgv5FleHVam
+        6qz9pMUr1yIUv98M66w/jK4MyMchuaDoPv1IWQy8soMMrLhn7YDbH4/4aJsU+GC0
+        c/mZfuwdS2ONTVtI9pvIJodJylp/X9H6dCdIQzzMo85MY50s5ynIi9f07SsNq7ZM
+        J8TKAb65AgMBAAECggEABa8VyJzqzqzqzqzqzqzqzqzqzqzqzqzqzqzqzqzqzqzq
+        -----END PRIVATE KEY-----
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_test_data:

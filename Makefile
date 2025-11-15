@@ -17,6 +17,20 @@ dev:
 test:
 	go test -v ./...
 
+# Run unit tests only
+test-unit:
+	go test -v -short ./...
+
+# Run integration tests
+test-integration:
+	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
+	docker-compose -f docker-compose.test.yml down -v
+
+# Run E2E tests
+test-e2e:
+	@if [ -z "$(E2E_BASE_URL)" ]; then echo "E2E_BASE_URL not set"; exit 1; fi
+	E2E_BASE_URL=$(E2E_BASE_URL) go test -v ./test/e2e_test.go
+
 # Clean build artifacts
 clean:
 	rm -f zeno-auth
