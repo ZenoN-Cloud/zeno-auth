@@ -15,20 +15,26 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Database: Database{
-			URL: getEnv("DATABASE_URL", ""),
-		},
+		Env:      getEnv("ENV", "dev"),
+		AppName:  getEnv("APP_NAME", "zeno-auth"),
+		Timezone: getEnv("TIMEZONE", "UTC"),
 		Server: Server{
 			Port: getEnv("PORT", "8080"),
 		},
+		Database: Database{
+			URL: getEnv("DATABASE_URL", ""),
+		},
 		JWT: JWT{
-			PrivateKey: getEnv("JWT_PRIVATE_KEY", ""),
+			PrivateKey:      getEnv("JWT_PRIVATE_KEY", ""),
+			PublicKey:       getEnv("JWT_PUBLIC_KEY", ""),
+			AccessTokenTTL:  getEnvInt("ACCESS_TOKEN_TTL", 1800),
+			RefreshTokenTTL: getEnvInt("REFRESH_TOKEN_TTL", 1209600),
 		},
 		Log: Log{
-			Level:    getEnv("LOG_LEVEL", "info"),
-			FilePath: getEnv("LOG_FILE", "logs/app.log"),
+			Level:  getEnv("LOG_LEVEL", "info"),
+			Format: getEnv("LOG_FORMAT", "json"),
+			File:   getEnv("LOG_FILE", "logs/app.log"),
 		},
-		Env: getEnv("ENV", "dev"),
 	}
 
 	if err := validate(cfg); err != nil {
@@ -54,6 +60,15 @@ func validate(cfg *Config) error {
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
 	}
 	return defaultValue
 }

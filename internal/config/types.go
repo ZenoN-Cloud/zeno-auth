@@ -1,26 +1,32 @@
 package config
 
 type Config struct {
-	Database Database `json:"database"`
+	Env      string   `json:"env"`
+	AppName  string   `json:"app_name"`
+	Timezone string   `json:"timezone"`
 	Server   Server   `json:"server"`
+	Database Database `json:"database"`
 	JWT      JWT      `json:"jwt"`
 	Log      Log      `json:"log"`
-	Env      string   `json:"env"`
-}
-
-type Database struct {
-	URL string `json:"url"`
 }
 
 type Server struct {
 	Port string `json:"port"`
 }
 
+type Database struct {
+	URL string `json:"url"`
+}
+
 type JWT struct {
-	PrivateKey string `json:"private_key"`
+	PrivateKey       string `json:"private_key"`
+	PublicKey        string `json:"public_key"`
+	AccessTokenTTL   int    `json:"access_token_ttl"`
+	RefreshTokenTTL  int    `json:"refresh_token_ttl"`
 }
 
 type Log struct {
-	Level    string `json:"level"`
-	FilePath string `json:"file_path"`
+	Level  string `json:"level"`
+	Format string `json:"format"`
+	File   string `json:"file"`
 }

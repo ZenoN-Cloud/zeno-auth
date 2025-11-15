@@ -47,6 +47,7 @@ func (r *RefreshManager) CreateToken(
 	ctx context.Context,
 	userID, orgID uuid.UUID,
 	token, userAgent, ipAddress string,
+	ttlSeconds int,
 ) *model.RefreshToken {
 	select {
 	case <-ctx.Done():
@@ -61,6 +62,6 @@ func (r *RefreshManager) CreateToken(
 		UserAgent: userAgent,
 		IPAddress: ipAddress,
 		CreatedAt: time.Now(),
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour), // 30 days
+		ExpiresAt: time.Now().Add(time.Duration(ttlSeconds) * time.Second),
 	}
 }

@@ -1,4 +1,4 @@
-.PHONY: build run test clean docker-build migrate-up migrate-down
+.PHONY: build run test clean docker-build migrate-up migrate-down dev
 
 # Build the application
 build:
@@ -6,6 +6,11 @@ build:
 
 # Run the application
 run:
+	go run cmd/auth/main.go
+
+# Run in development mode with .env
+dev:
+	@if [ ! -f .env ]; then cp .env.example .env; fi
 	go run cmd/auth/main.go
 
 # Run tests
@@ -32,3 +37,8 @@ migrate-down:
 deps:
 	go mod tidy
 	go mod download
+
+# Generate JWT private key for development
+gen-key:
+	@openssl genrsa -out jwt-private.pem 2048
+	@echo "JWT private key generated: jwt-private.pem"

@@ -21,19 +21,33 @@ type JWTManager struct {
 	publicKey  *rsa.PublicKey
 }
 
-func NewJWTManager(privateKeyPEM string) (*JWTManager, error) {
+func NewJWTManager(privateKeyPEM, publicKeyPEM string) (*JWTManager, error) {
 	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(privateKeyPEM))
 	if err != nil {
 		return nil, err
 	}
 
+	var publicKey *rsa.PublicKey
+	if publicKeyPEM != "" {
+		publicKey, err = jwt.ParseRSAPublicKeyFromPEM([]byte(publicKeyPEM))
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Fallback to embedded public key
+		publicKey, err = LoadPublicKeyFromFile()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &JWTManager{
 		privateKey: privateKey,
-		publicKey:  &privateKey.PublicKey,
+		publicKey:  publicKey,
 	}, nil
 }
 
-func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, roles []string) (string, error) {
+func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, roles []string, ttlSeconds int) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -45,7 +59,7 @@ func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, role
 		OrgID:  orgID,
 		Roles:  roles,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(ttlSeconds) * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "zeno-auth",
 			Audience:  []string{"zenon-cloud"},

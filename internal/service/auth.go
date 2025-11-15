@@ -28,6 +28,7 @@ type AuthService struct {
 	jwtManager      *token.JWTManager
 	refreshManager  *token.RefreshManager
 	passwordManager *token.PasswordManager
+	config          *Config
 }
 
 func NewAuthService(
@@ -38,6 +39,7 @@ func NewAuthService(
 	jwtManager *token.JWTManager,
 	refreshManager *token.RefreshManager,
 	passwordManager *token.PasswordManager,
+	config *Config,
 ) *AuthService {
 	return &AuthService{
 		userRepo:        userRepo,
@@ -47,6 +49,7 @@ func NewAuthService(
 		jwtManager:      jwtManager,
 		refreshManager:  refreshManager,
 		passwordManager: passwordManager,
+		config:          config,
 	}
 }
 
@@ -118,7 +121,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		}
 	}
 
-	accessToken, err := s.jwtManager.Generate(ctx, user.ID, orgID, roles)
+	accessToken, err := s.jwtManager.Generate(ctx, user.ID, orgID, roles, s.config.AccessTokenTTL)
 	if err != nil {
 		return "", "", err
 	}
@@ -128,7 +131,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", err
 	}
 
-	refreshToken := s.refreshManager.CreateToken(ctx, user.ID, orgID, refreshTokenStr, userAgent, ipAddress)
+	refreshToken := s.refreshManager.CreateToken(ctx, user.ID, orgID, refreshTokenStr, userAgent, ipAddress, s.config.RefreshTokenTTL)
 	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return "", "", err
 	}
@@ -154,7 +157,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr string) 
 	}
 
 	roles := []string{string(membership.Role)}
-	return s.jwtManager.Generate(ctx, refreshToken.UserID, refreshToken.OrgID, roles)
+	return s.jwtManager.Generate(ctx, refreshToken.UserID, refreshToken.OrgID, roles, s.config.AccessTokenTTL)
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID uuid.UUID) error {
