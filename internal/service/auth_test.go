@@ -38,32 +38,32 @@ func (m *MockUserRepo) Update(ctx context.Context, user *model.User) error {
 	return args.Error(0)
 }
 
-type MockPasswordManager struct {
+type MockPasswordHasher struct {
 	mock.Mock
 }
 
-func (m *MockPasswordManager) Hash(ctx context.Context, password string) (string, error) {
+func (m *MockPasswordHasher) Hash(ctx context.Context, password string) (string, error) {
 	args := m.Called(ctx, password)
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockPasswordManager) Verify(ctx context.Context, password, hash string) (bool, error) {
+func (m *MockPasswordHasher) Verify(ctx context.Context, password, hash string) (bool, error) {
 	args := m.Called(ctx, password, hash)
 	return args.Bool(0), args.Error(1)
 }
 
 func TestAuthService_Register(t *testing.T) {
 	userRepo := &MockUserRepo{}
-	passwordManager := &MockPasswordManager{}
+	passwordHasher := &MockPasswordHasher{}
 	
 	// Mock no existing user
 	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, assert.AnError)
-	passwordManager.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)
+	passwordHasher.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)
 	userRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 
 	authService := &AuthService{
 		userRepo:        userRepo,
-		passwordManager: passwordManager,
+		passwordManager: passwordHasher,
 	}
 
 	ctx := context.Background()
@@ -75,5 +75,5 @@ func TestAuthService_Register(t *testing.T) {
 	assert.True(t, user.IsActive)
 
 	userRepo.AssertExpectations(t)
-	passwordManager.AssertExpectations(t)
+	passwordHasher.AssertExpectations(t)
 }

@@ -55,7 +55,6 @@ jobs:
           --set-secrets=DATABASE_URL=zeno-auth-db-dsn:latest \
           --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
           --set-env-vars=ENV=dev \
-          --set-env-vars=PORT=8080 \
           --allow-unauthenticated \
           --memory=512Mi \
           --cpu=1 \

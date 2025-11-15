@@ -28,13 +28,32 @@ services:
       ENV: test
       JWT_PRIVATE_KEY: |
         -----BEGIN PRIVATE KEY-----
-        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
+        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
+        E6+XJ0hEgQ4TzMRglfhSUNk=
         -----END PRIVATE KEY-----
     ports:
       - "8080:8080"

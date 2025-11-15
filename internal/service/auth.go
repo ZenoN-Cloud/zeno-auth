@@ -27,7 +27,7 @@ type AuthService struct {
 	refreshRepo     repository.RefreshTokenRepository
 	jwtManager      *token.JWTManager
 	refreshManager  *token.RefreshManager
-	passwordManager *token.PasswordManager
+	passwordManager token.PasswordHasher
 	config          *Config
 }
 
@@ -38,7 +38,7 @@ func NewAuthService(
 	refreshRepo repository.RefreshTokenRepository,
 	jwtManager *token.JWTManager,
 	refreshManager *token.RefreshManager,
-	passwordManager *token.PasswordManager,
+	passwordManager token.PasswordHasher,
 	config *Config,
 ) *AuthService {
 	return &AuthService{
