@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
 
 type UserRepository interface {

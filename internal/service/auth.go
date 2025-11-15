@@ -6,11 +6,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 var (
@@ -51,7 +52,7 @@ func NewAuthService(
 
 func (s *AuthService) Register(ctx context.Context, email, password, fullName string) (*model.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	
+
 	_, err := s.userRepo.GetByEmail(ctx, email)
 	if err == nil {
 		return nil, ErrEmailExists
@@ -81,7 +82,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 
 func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipAddress string) (string, string, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	
+
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -137,7 +138,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 
 func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr string) (string, error) {
 	tokenHash := s.refreshManager.Hash(ctx, refreshTokenStr)
-	
+
 	refreshToken, err := s.refreshRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
 		return "", ErrInvalidCredentials

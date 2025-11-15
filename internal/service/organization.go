@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
-	"github.com/google/uuid"
 )
 
 type OrganizationService struct {
@@ -23,7 +24,9 @@ func NewOrganizationService(
 	}
 }
 
-func (s *OrganizationService) Create(ctx context.Context, name string, ownerUserID uuid.UUID) (*model.Organization, error) {
+func (s *OrganizationService) Create(ctx context.Context, name string, ownerUserID uuid.UUID) (
+	*model.Organization, error,
+) {
 	org := &model.Organization{
 		Name:        name,
 		OwnerUserID: ownerUserID,

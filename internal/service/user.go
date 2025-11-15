@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
-	"github.com/google/uuid"
 )
 
 type UserService struct {

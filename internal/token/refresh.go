@@ -7,8 +7,9 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
 
 type RefreshManager struct{}
@@ -42,7 +43,11 @@ func (r *RefreshManager) Hash(ctx context.Context, token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (r *RefreshManager) CreateToken(ctx context.Context, userID, orgID uuid.UUID, token, userAgent, ipAddress string) *model.RefreshToken {
+func (r *RefreshManager) CreateToken(
+	ctx context.Context,
+	userID, orgID uuid.UUID,
+	token, userAgent, ipAddress string,
+) *model.RefreshToken {
 	select {
 	case <-ctx.Done():
 		return nil

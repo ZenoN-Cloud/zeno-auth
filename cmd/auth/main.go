@@ -6,8 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/app"
 	"github.com/rs/zerolog/log"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/app"
 )
 
 func main() {
