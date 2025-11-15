@@ -57,6 +57,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Invalid credentials"})
 			return
 		}
+		// Log the actual error for debugging
+		c.Error(err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Login failed"})
 		return
 	}
