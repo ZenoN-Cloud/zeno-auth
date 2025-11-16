@@ -22,7 +22,14 @@ func (r *RefreshTokenRepo) Create(ctx context.Context, token *model.RefreshToken
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`
 
-	return r.db.pool.QueryRow(ctx, query, token.UserID, token.OrgID, token.TokenHash, token.UserAgent, token.IPAddress, token.CreatedAt, token.ExpiresAt).Scan(&token.ID)
+	var orgID interface{}
+	if token.OrgID == uuid.Nil {
+		orgID = nil
+	} else {
+		orgID = token.OrgID
+	}
+
+	return r.db.pool.QueryRow(ctx, query, token.UserID, orgID, token.TokenHash, token.UserAgent, token.IPAddress, token.CreatedAt, token.ExpiresAt).Scan(&token.ID)
 }
 
 func (r *RefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.RefreshToken, error) {
