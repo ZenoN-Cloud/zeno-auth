@@ -80,6 +80,29 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		return nil, err
 	}
 
+	// Create default organization for user
+	org := &model.Organization{
+		Name:        fullName + "'s Organization",
+		OwnerUserID: user.ID,
+		Status:      "active",
+	}
+
+	if err := s.orgRepo.Create(ctx, org); err != nil {
+		return nil, err
+	}
+
+	// Create membership with OWNER role
+	membership := &model.OrgMembership{
+		UserID:   user.ID,
+		OrgID:    org.ID,
+		Role:     model.RoleOwner,
+		IsActive: true,
+	}
+
+	if err := s.membershipRepo.Create(ctx, membership); err != nil {
+		return nil, err
+	}
+
 	return user, nil
 }
 
@@ -106,16 +129,25 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", ErrInvalidCredentials
 	}
 
-	// Organization is optional - users can exist without organizations
-	var orgID uuid.UUID
-	var roles []string
+	// Get user's organizations
 	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
-	if err == nil && len(orgs) > 0 {
-		orgID = orgs[0].ID
-		membership, err := s.membershipRepo.GetByUserAndOrg(ctx, user.ID, orgID)
-		if err == nil {
-			roles = []string{string(membership.Role)}
-		}
+	if err != nil {
+		return "", "", err
+	}
+
+	// User must have at least one organization
+	if len(orgs) == 0 {
+		return "", "", errors.New("user has no organizations")
+	}
+
+	// Use first organization (later can add org selection)
+	orgID := orgs[0].ID
+
+	// Get user's role in organization
+	var roles []string
+	membership, err := s.membershipRepo.GetByUserAndOrg(ctx, user.ID, orgID)
+	if err == nil {
+		roles = []string{string(membership.Role)}
 	}
 
 	accessToken, err := s.jwtManager.Generate(ctx, user.ID, orgID, roles, s.config.AccessTokenTTL)
