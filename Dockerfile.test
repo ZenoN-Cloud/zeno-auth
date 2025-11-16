@@ -1,0 +1,12 @@
+FROM golang:1.25-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache git curl postgresql-client
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+CMD ["sh", "-c", "sleep 5 && go test -v -timeout 5m ./test/..."]

@@ -3,7 +3,6 @@
 .github
 README.md
 LICENSE
-Dockerfile*
 .dockerignore
 .env*
 docs/
