@@ -9,15 +9,13 @@ services:
       POSTGRES_PASSWORD: testpassword
     ports:
       - "5433:5432"
-    volumes:
-      - postgres_test_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U zeno_auth -d zeno_auth_test"]
-      interval: 5s
-      timeout: 5s
+      interval: 3s
+      timeout: 3s
       retries: 5
 
-  zeno-auth-test:
+  app:
     build: .
     depends_on:
       postgres:
@@ -58,10 +56,21 @@ services:
     ports:
       - "8080:8080"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      TEST_BASE_URL: http://app:8080
 
 volumes:
   postgres_test_data:

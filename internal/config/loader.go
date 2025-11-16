@@ -45,9 +45,6 @@ func Load() (*Config, error) {
 }
 
 func validate(cfg *Config) error {
-	if cfg.Database.URL == "" {
-		return fmt.Errorf("DATABASE_URL is required")
-	}
 	if cfg.JWT.PrivateKey == "" {
 		return fmt.Errorf("JWT_PRIVATE_KEY is required")
 	}

@@ -5,6 +5,8 @@
 *.so
 *.dylib
 /zeno-auth
+/main
+cloud-sql-proxy
 
 # Test binary
 *.test
@@ -37,5 +39,6 @@ Thumbs.db
 *.log
 logs/
 
-# Docker
-.dockerignore
+# Coverage
+coverage.out
+coverage.html

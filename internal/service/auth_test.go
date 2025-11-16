@@ -56,7 +56,7 @@ func (m *MockPasswordHasher) Verify(ctx context.Context, password, hash string) 
 func TestAuthService_Register(t *testing.T) {
 	userRepo := &MockUserRepo{}
 	passwordHasher := &MockPasswordHasher{}
-	
+
 	// Mock no existing user
 	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, pgx.ErrNoRows)
 	passwordHasher.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)

@@ -34,7 +34,7 @@ func New() (*App, error) {
 
 	// Start with minimal setup - just health endpoint
 	log.Info().Msg("Starting with minimal configuration...")
-	
+
 	// Try to connect to database but don't fail if it's not available
 	var db *postgres.DB
 	log.Info().Msg("Attempting to connect to database...")

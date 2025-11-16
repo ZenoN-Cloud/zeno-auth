@@ -28,7 +28,7 @@ func SetupLogger(cfg *Config) error {
 		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0755); err != nil {
 			return err
 		}
-		
+
 		file, err := os.OpenFile(cfg.Log.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return err

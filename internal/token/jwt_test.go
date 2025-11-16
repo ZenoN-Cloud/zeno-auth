@@ -15,19 +15,19 @@ import (
 
 func generateTestKeys() (string, string) {
 	privateKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	
+
 	privateKeyBytes, _ := x509.MarshalPKCS8PrivateKey(privateKey)
 	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "PRIVATE KEY",
 		Bytes: privateKeyBytes,
 	})
-	
+
 	publicKeyBytes, _ := x509.MarshalPKIXPublicKey(&privateKey.PublicKey)
 	publicKeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "PUBLIC KEY",
 		Bytes: publicKeyBytes,
 	})
-	
+
 	return string(privateKeyPEM), string(publicKeyPEM)
 }
 
