@@ -110,12 +110,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	var orgID uuid.UUID
 	var roles []string
 	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
-	if err != nil {
-		// GetByUserID returns empty slice, not error, when no orgs found
-		// Only return error if it's a real database error
-		return "", "", err
-	}
-	if len(orgs) > 0 {
+	if err == nil && len(orgs) > 0 {
 		orgID = orgs[0].ID
 		membership, err := s.membershipRepo.GetByUserAndOrg(ctx, user.ID, orgID)
 		if err == nil {
