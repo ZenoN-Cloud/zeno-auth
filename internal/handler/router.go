@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/gin-gonic/gin"
@@ -10,6 +11,7 @@ func SetupRouter(
 	authService service.AuthServiceInterface,
 	userService service.UserServiceInterface,
 	jwtManager *token.JWTManager,
+	db *postgres.DB,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(LoggingMiddleware())
@@ -20,6 +22,12 @@ func SetupRouter(
 	r.GET("/health", Health)
 	r.HEAD("/health", Health)
 	r.GET("/debug", Debug)
+
+	// Cleanup endpoint (dev only)
+	if db != nil {
+		cleanupHandler := NewCleanupHandler(db)
+		r.POST("/debug/cleanup", cleanupHandler.CleanupAll)
+	}
 
 	// Only add other endpoints if services are available
 	if authService != nil && userService != nil && jwtManager != nil {

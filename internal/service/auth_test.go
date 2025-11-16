@@ -53,17 +53,77 @@ func (m *MockPasswordHasher) Verify(ctx context.Context, password, hash string) 
 	return args.Bool(0), args.Error(1)
 }
 
+type MockOrgRepo struct {
+	mock.Mock
+}
+
+func (m *MockOrgRepo) Create(ctx context.Context, org *model.Organization) error {
+	args := m.Called(ctx, org)
+	if args.Error(0) == nil {
+		org.ID = uuid.New()
+	}
+	return args.Error(0)
+}
+
+func (m *MockOrgRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Organization, error) {
+	args := m.Called(ctx, id)
+	return args.Get(0).(*model.Organization), args.Error(1)
+}
+
+func (m *MockOrgRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Organization, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]*model.Organization), args.Error(1)
+}
+
+func (m *MockOrgRepo) Update(ctx context.Context, org *model.Organization) error {
+	args := m.Called(ctx, org)
+	return args.Error(0)
+}
+
+type MockMembershipRepo struct {
+	mock.Mock
+}
+
+func (m *MockMembershipRepo) Create(ctx context.Context, membership *model.OrgMembership) error {
+	args := m.Called(ctx, membership)
+	return args.Error(0)
+}
+
+func (m *MockMembershipRepo) GetByUserAndOrg(ctx context.Context, userID, orgID uuid.UUID) (*model.OrgMembership, error) {
+	args := m.Called(ctx, userID, orgID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.OrgMembership), args.Error(1)
+}
+
+func (m *MockMembershipRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.OrgMembership, error) {
+	args := m.Called(ctx, userID)
+	return args.Get(0).([]*model.OrgMembership), args.Error(1)
+}
+
+func (m *MockMembershipRepo) Update(ctx context.Context, membership *model.OrgMembership) error {
+	args := m.Called(ctx, membership)
+	return args.Error(0)
+}
+
 func TestAuthService_Register(t *testing.T) {
 	userRepo := &MockUserRepo{}
+	orgRepo := &MockOrgRepo{}
+	membershipRepo := &MockMembershipRepo{}
 	passwordHasher := &MockPasswordHasher{}
 
 	// Mock no existing user
 	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, pgx.ErrNoRows)
 	passwordHasher.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)
 	userRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
+	orgRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.Organization")).Return(nil)
+	membershipRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.OrgMembership")).Return(nil)
 
 	authService := &AuthService{
 		userRepo:        userRepo,
+		orgRepo:         orgRepo,
+		membershipRepo:  membershipRepo,
 		passwordManager: passwordHasher,
 	}
 
@@ -76,5 +136,7 @@ func TestAuthService_Register(t *testing.T) {
 	assert.True(t, user.IsActive)
 
 	userRepo.AssertExpectations(t)
+	orgRepo.AssertExpectations(t)
+	membershipRepo.AssertExpectations(t)
 	passwordHasher.AssertExpectations(t)
 }

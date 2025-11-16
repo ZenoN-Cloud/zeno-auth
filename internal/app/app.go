@@ -72,10 +72,10 @@ func New() (*App, error) {
 		userService := service.NewUserService(userRepo, membershipRepo)
 
 		// Setup router with full services
-		router = handler.SetupRouter(authService, userService, jwtManager)
+		router = handler.SetupRouter(authService, userService, jwtManager, db)
 	} else {
 		// Setup minimal router with just health endpoint
-		router = handler.SetupRouter(nil, nil, jwtManager)
+		router = handler.SetupRouter(nil, nil, jwtManager, nil)
 	}
 
 	server := &http.Server{

@@ -33,3 +33,7 @@ func New(databaseURL string) (*DB, error) {
 func (db *DB) Close() {
 	db.pool.Close()
 }
+
+func (db *DB) Pool() *pgxpool.Pool {
+	return db.pool
+}
