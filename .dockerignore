@@ -7,7 +7,6 @@ LICENSE
 .env*
 docs/
 deploy/
-test/
 *.md
 *.log
 main
