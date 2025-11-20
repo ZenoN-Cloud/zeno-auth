@@ -91,6 +91,11 @@ func (m *Metrics) GetMetrics() MetricsSnapshot {
 	}
 }
 
+// GetMetricsInterface returns metrics as interface{} for generic handlers
+func (m *Metrics) GetMetricsInterface() interface{} {
+	return m.GetMetrics()
+}
+
 // MetricsSnapshot represents a point-in-time snapshot of metrics
 type MetricsSnapshot struct {
 	RegistrationsTotal  int64         `json:"registrations_total"`

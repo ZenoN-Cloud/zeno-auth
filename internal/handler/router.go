@@ -75,19 +75,21 @@ func SetupRouter(
 	r.GET("/debug", Debug)
 
 	// Metrics endpoint
-	if metricsCollector != nil {
-		r.GET("/metrics", func(c *gin.Context) {
-			// Try to get metrics snapshot
-			type snapshotGetter interface {
-				GetMetrics() interface{}
-			}
-			if sg, ok := metricsCollector.(snapshotGetter); ok {
-				c.JSON(http.StatusOK, sg.GetMetrics())
-			} else {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
-			}
-		})
-	}
+	r.GET("/metrics", func(c *gin.Context) {
+		if metricsCollector == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
+			return
+		}
+		// Try to call GetMetricsInterface() method
+		type metricsGetter interface {
+			GetMetricsInterface() interface{}
+		}
+		if mg, ok := metricsCollector.(metricsGetter); ok {
+			c.JSON(http.StatusOK, mg.GetMetricsInterface())
+			return
+		}
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
+	})
 
 	// Cleanup endpoints (dev only)
 	if db != nil {
