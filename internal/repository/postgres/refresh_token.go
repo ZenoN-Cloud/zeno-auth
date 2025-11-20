@@ -54,3 +54,29 @@ func (r *RefreshTokenRepo) DeleteExpired(ctx context.Context) error {
 	_, err := r.db.pool.Exec(ctx, query, time.Now(), cutoff)
 	return err
 }
+
+func (r *RefreshTokenRepo) GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*model.RefreshToken, error) {
+	query := `
+		SELECT id, user_id, org_id, token_hash, user_agent, ip_address, fingerprint_hash, created_at, expires_at, revoked_at
+		FROM refresh_tokens
+		WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
+		ORDER BY created_at DESC`
+
+	rows, err := r.db.pool.Query(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []*model.RefreshToken
+	for rows.Next() {
+		token := &model.RefreshToken{}
+		err := rows.Scan(&token.ID, &token.UserID, &token.OrgID, &token.TokenHash, &token.UserAgent, &token.IPAddress, &token.FingerprintHash, &token.CreatedAt, &token.ExpiresAt, &token.RevokedAt)
+		if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+
+	return tokens, rows.Err()
+}

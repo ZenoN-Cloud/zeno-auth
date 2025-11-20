@@ -1,18 +1,28 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/gin-gonic/gin"
 )
 
-type CleanupHandler struct {
-	db *postgres.DB
+type CleanupService interface {
+	CleanupExpiredTokens(ctx context.Context) (int, error)
+	CleanupOldAuditLogs(ctx context.Context, retentionDays int) (int, error)
 }
 
-func NewCleanupHandler(db *postgres.DB) *CleanupHandler {
-	return &CleanupHandler{db: db}
+type CleanupHandler struct {
+	db             *postgres.DB
+	cleanupService CleanupService
+}
+
+func NewCleanupHandler(db *postgres.DB, cleanupService CleanupService) *CleanupHandler {
+	return &CleanupHandler{
+		db:             db,
+		cleanupService: cleanupService,
+	}
 }
 
 func (h *CleanupHandler) CleanupAll(c *gin.Context) {
@@ -38,4 +48,36 @@ func (h *CleanupHandler) CleanupAll(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "All tables cleaned"})
+}
+
+func (h *CleanupHandler) CleanupExpired(c *gin.Context) {
+	secret := c.GetHeader("X-Admin-Secret")
+	if secret != "dev-cleanup-secret-2024" {
+		c.JSON(http.StatusForbidden, ErrorResponse{Error: "Forbidden"})
+		return
+	}
+
+	if h.cleanupService == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "Cleanup service not available"})
+		return
+	}
+
+	tokensDeleted, err := h.cleanupService.CleanupExpiredTokens(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	logsDeleted, err := h.cleanupService.CleanupOldAuditLogs(c.Request.Context(), 730)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Cleanup completed",
+		"tokens_deleted": tokensDeleted,
+		"logs_deleted":   logsDeleted,
+		"retention_days": 730,
+	})
 }

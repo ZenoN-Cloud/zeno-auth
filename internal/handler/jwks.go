@@ -3,8 +3,9 @@ package handler
 import (
 	"net/http"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/gin-gonic/gin"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 )
 
 type JWKSHandler struct {

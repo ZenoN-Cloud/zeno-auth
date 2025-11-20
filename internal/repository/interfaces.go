@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -35,4 +36,17 @@ type RefreshTokenRepository interface {
 	RevokeByUserID(ctx context.Context, userID uuid.UUID) error
 	RevokeByID(ctx context.Context, id uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
+}
+
+type ConsentRepository interface {
+	Create(ctx context.Context, consent *model.UserConsent) error
+	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.UserConsent, error)
+	GetByUserAndType(ctx context.Context, userID uuid.UUID, consentType model.ConsentType) (*model.UserConsent, error)
+	Revoke(ctx context.Context, userID uuid.UUID, consentType model.ConsentType) error
+}
+
+type AuditLogRepository interface {
+	Create(ctx context.Context, log *model.AuditLog) error
+	GetByUserID(ctx context.Context, userID uuid.UUID, limit int) ([]*model.AuditLog, error)
+	DeleteOlderThan(ctx context.Context, date time.Time) error
 }

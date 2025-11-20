@@ -2,12 +2,11 @@ FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
+# Copy source code first
 COPY . .
+
+# Update dependencies and download
+RUN go mod tidy && go mod download
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o zeno-auth cmd/auth/main.go

@@ -3,10 +3,13 @@ package handler
 import (
 	"net/http"
 	"strings"
+	"time"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/metrics"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 )
 
 func AuthMiddleware(jwtManager *token.JWTManager) gin.HandlerFunc {
@@ -27,6 +30,7 @@ func AuthMiddleware(jwtManager *token.JWTManager) gin.HandlerFunc {
 
 		claims, err := jwtManager.Validate(c.Request.Context(), tokenString)
 		if err != nil {
+			log.Error().Err(err).Str("token_prefix", tokenString[:20]).Msg("Token validation failed")
 			c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Invalid token"})
 			c.Abort()
 			return
@@ -52,9 +56,40 @@ func LoggingMiddleware() gin.HandlerFunc {
 	})
 }
 
-func CORSMiddleware() gin.HandlerFunc {
+func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("X-XSS-Protection", "1; mode=block")
+		c.Header("Content-Security-Policy", "default-src 'self'")
+		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+		c.Next()
+	}
+}
+
+func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+
+		// Check if origin is allowed
+		allowed := false
+		for _, allowedOrigin := range allowedOrigins {
+			if origin == allowedOrigin || allowedOrigin == "*" {
+				allowed = true
+				break
+			}
+		}
+
+		if allowed {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Credentials", "true")
+		} else if len(allowedOrigins) == 0 {
+			// Fallback for backward compatibility
+			c.Header("Access-Control-Allow-Origin", "*")
+		}
+
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Content-Length, Accept, Authorization, X-Requested-With")
 		c.Header("Access-Control-Expose-Headers", "Content-Length, Content-Type")
@@ -66,5 +101,15 @@ func CORSMiddleware() gin.HandlerFunc {
 		}
 
 		c.Next()
+	}
+}
+
+// MetricsMiddleware records request duration metrics
+func MetricsMiddleware(m *metrics.Metrics) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+		m.RecordRequestDuration(duration)
 	}
 }

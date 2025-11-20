@@ -2,6 +2,9 @@ module github.com/ZenoN-Cloud/zeno-auth
 
 go 1.25
 
+// Fix quic-go compatibility with qpack
+replace github.com/quic-go/qpack => github.com/quic-go/qpack v0.5.1
+
 require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
@@ -10,8 +13,11 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/rs/zerolog v1.34.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.44.0
+	github.com/ulule/limiter/v3 v3.11.2
+	golang.org/x/crypto v0.45.0
 )
+
+require github.com/pkg/errors v0.9.1 // indirect
 
 require (
 	github.com/bytedance/gopkg v0.1.3 // indirect
@@ -39,7 +45,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/quic-go/qpack v0.5.1 // indirect
+	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.56.0 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect

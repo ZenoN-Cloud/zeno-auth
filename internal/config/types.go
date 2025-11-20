@@ -11,7 +11,8 @@ type Config struct {
 }
 
 type Server struct {
-	Port string `json:"port"`
+	Port               string   `json:"port"`
+	CORSAllowedOrigins []string `json:"cors_allowed_origins"`
 }
 
 type Database struct {
@@ -29,4 +30,9 @@ type Log struct {
 	Level  string `json:"level"`
 	Format string `json:"format"`
 	File   string `json:"file"`
+}
+
+// GetCORSOrigins returns the list of allowed CORS origins
+func (c *Config) GetCORSOrigins() []string {
+	return c.Server.CORSAllowedOrigins
 }

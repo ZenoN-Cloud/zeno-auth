@@ -1,4 +1,4 @@
-.PHONY: build run test clean docker-build migrate-up migrate-down dev
+.PHONY: build run test clean docker-build migrate-up migrate-down dev local-up local-down local-logs local-restart
 
 # Build the application
 build:
@@ -12,6 +12,64 @@ run:
 dev:
 	@if [ ! -f .env ]; then cp .env.example .env; fi
 	go run cmd/auth/main.go
+
+# ───────────────────────────────────────────────────────
+# Локальная разработка через Docker Compose
+# ───────────────────────────────────────────────────────
+
+# Запустить все сервисы локально
+local-up:
+	@echo "🚀 Запуск Zeno Auth локально..."
+	docker-compose up -d
+	@echo "✅ Сервисы запущены!"
+	@echo "📍 API:      http://localhost:8080"
+	@echo "📍 Health:   http://localhost:8080/health"
+	@echo "📍 JWKS:     http://localhost:8080/.well-known/jwks.json"
+	@echo "📍 pgAdmin:  http://localhost:5050 (admin@zeno.local / admin)"
+
+# Остановить все сервисы
+local-down:
+	@echo "🛑 Остановка сервисов..."
+	docker-compose down
+
+# Остановить и удалить все данные (volumes)
+local-clean:
+	@echo "🧹 Очистка всех данных..."
+	docker-compose down -v
+	rm -rf logs/*
+
+# Показать логи
+local-logs:
+	docker-compose logs -f
+
+# Показать логи только auth сервиса
+local-logs-auth:
+	docker-compose logs -f zeno-auth
+
+# Перезапустить сервисы
+local-restart:
+	@echo "🔄 Перезапуск сервисов..."
+	docker-compose restart
+
+# Пересобрать и запустить
+local-rebuild:
+	@echo "🔨 Пересборка и запуск..."
+	docker-compose up -d --build
+
+# Статус сервисов
+local-status:
+	docker-compose ps
+
+# Тестирование API локально
+local-test:
+	@echo "🧪 Запуск тестов API..."
+	@bash scripts/test-local.sh
+
+# Очистить базу данных
+local-db-clean:
+	@echo "🧹 Очистка базы данных..."
+	docker exec zeno-auth-postgres psql -U zeno_auth -d zeno_auth -c "TRUNCATE TABLE refresh_tokens, org_memberships, organizations, users CASCADE;"
+	@echo "✅ База данных очищена!"
 
 # Run tests
 test:

@@ -19,7 +19,8 @@ func Load() (*Config, error) {
 		AppName:  getEnv("APP_NAME", "zeno-auth"),
 		Timezone: getEnv("TIMEZONE", "UTC"),
 		Server: Server{
-			Port: getEnv("PORT", "8080"),
+			Port:               getEnv("PORT", "8080"),
+			CORSAllowedOrigins: getEnvSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),
 		},
 		Database: Database{
 			URL: getEnv("DATABASE_URL", ""),
@@ -68,4 +69,52 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+func getEnvSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		var result []string
+		for _, v := range splitAndTrim(value, ",") {
+			if v != "" {
+				result = append(result, v)
+			}
+		}
+		return result
+	}
+	return defaultValue
+}
+
+func splitAndTrim(s, sep string) []string {
+	var result []string
+	for _, v := range splitString(s, sep) {
+		if trimmed := trimSpace(v); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func splitString(s, sep string) []string {
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep[0] {
+			result = append(result, s[start:i])
+			start = i + 1
+		}
+	}
+	result = append(result, s[start:])
+	return result
+}
+
+func trimSpace(s string) string {
+	start := 0
+	for start < len(s) && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
+		start++
+	}
+	end := len(s)
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
+		end--
+	}
+	return s[start:end]
 }

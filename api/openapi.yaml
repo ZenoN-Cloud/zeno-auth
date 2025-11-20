@@ -1,0 +1,430 @@
+openapi: 3.0.3
+info:
+  title: Zeno Auth API
+  description: |
+    Core authentication and identity service for the ZenoN-Cloud platform.
+    
+    This service provides:
+    - User registration and authentication
+    - JWT token management (access & refresh)
+    - Organization management
+    - GDPR compliance features
+    - Session management
+    
+  version: 1.0.0
+  contact:
+    name: ZenoN-Cloud Team
+    url: https://github.com/ZenoN-Cloud/zeno-auth
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://auth-dev.zenon-cloud.com
+    description: Development environment
+  - url: https://auth.zenon-cloud.com
+    description: Production environment
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: User
+    description: User profile management
+  - name: GDPR
+    description: GDPR compliance endpoints
+  - name: Sessions
+    description: Session management
+  - name: Consent
+    description: User consent management
+  - name: Health
+    description: Service health checks
+  - name: Admin
+    description: Administrative endpoints
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Basic health check
+      description: Simple health check that always returns 200 OK
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: zeno-auth
+
+  /health/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Checks if service is ready to accept traffic (includes dependency checks)
+      responses:
+        '200':
+          description: Service is ready
+        '503':
+          description: Service is not ready
+
+  /health/live:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Checks if service process is alive
+      responses:
+        '200':
+          description: Service is alive
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      description: Returns service metrics in JSON format
+      responses:
+        '200':
+          description: Metrics data
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user
+      description: Creates a new user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, full_name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: SecurePass123
+                full_name:
+                  type: string
+                  example: John Doe
+      responses:
+        '201':
+          description: User created successfully
+        '400':
+          description: Invalid input
+        '409':
+          description: Email already exists
+        '429':
+          description: Rate limit exceeded
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticates user and returns JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Rate limit exceeded
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Generates new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+        '401':
+          description: Invalid refresh token
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: Revokes all user's refresh tokens
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logged out successfully
+        '401':
+          description: Unauthorized
+
+  /me:
+    get:
+      tags: [User]
+      summary: Get user profile
+      description: Returns current user's profile information
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+        '401':
+          description: Unauthorized
+
+  /me/change-password:
+    post:
+      tags: [User]
+      summary: Change password
+      description: Changes user's password
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Password changed
+        '400':
+          description: Invalid input
+        '401':
+          description: Unauthorized
+
+  /me/data-export:
+    get:
+      tags: [GDPR]
+      summary: Export user data
+      description: Returns all user data (GDPR Art. 15 - Right to Access)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User data export
+        '401':
+          description: Unauthorized
+
+  /me/account:
+    delete:
+      tags: [GDPR]
+      summary: Delete user account
+      description: Deletes user account (GDPR Art. 17 - Right to be Forgotten)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Account deleted
+        '401':
+          description: Unauthorized
+
+  /me/sessions:
+    get:
+      tags: [Sessions]
+      summary: List active sessions
+      description: Returns list of user's active sessions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of sessions
+        '401':
+          description: Unauthorized
+    delete:
+      tags: [Sessions]
+      summary: Revoke all sessions
+      description: Revokes all user's sessions except current
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sessions revoked
+        '401':
+          description: Unauthorized
+
+  /me/sessions/{id}:
+    delete:
+      tags: [Sessions]
+      summary: Revoke specific session
+      description: Revokes a specific session by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Session revoked
+        '401':
+          description: Unauthorized
+        '404':
+          description: Session not found
+
+  /me/consents:
+    get:
+      tags: [Consent]
+      summary: Get user consents
+      description: Returns list of user's consents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of consents
+        '401':
+          description: Unauthorized
+    post:
+      tags: [Consent]
+      summary: Grant consent
+      description: Grants a specific consent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consent_type, version]
+              properties:
+                consent_type:
+                  type: string
+                  enum: [terms, privacy, marketing, analytics]
+                version:
+                  type: string
+      responses:
+        '200':
+          description: Consent granted
+        '401':
+          description: Unauthorized
+
+  /admin/compliance/report:
+    get:
+      tags: [Admin]
+      summary: Get compliance report
+      description: Returns GDPR compliance report
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Compliance report
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (admin only)
+
+  /admin/compliance/status:
+    get:
+      tags: [Admin]
+      summary: Get compliance status
+      description: Returns current GDPR and security compliance status
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Compliance status
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (admin only)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Invalid input
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+security: []

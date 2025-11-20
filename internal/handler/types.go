@@ -1,6 +1,10 @@
 package handler
 
-import "github.com/google/uuid"
+import (
+	"context"
+
+	"github.com/google/uuid"
+)
 
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
@@ -31,4 +35,18 @@ type UserResponse struct {
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+}
+
+// MetricsCollector interface for collecting metrics
+type MetricsCollector interface {
+	IncrementRegistrations()
+	IncrementLogins()
+	IncrementLoginFailures()
+	IncrementTokenRefreshes()
+	SetActiveSessions(count int64)
+}
+
+// AuditService interface for audit logging
+type AuditService interface {
+	Log(ctx context.Context, userID *uuid.UUID, eventType interface{}, eventData map[string]interface{}, ipAddress, userAgent string) error
 }

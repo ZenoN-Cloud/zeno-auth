@@ -11,6 +11,7 @@ import (
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/handler"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/metrics"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
@@ -35,16 +36,13 @@ func New() (*App, error) {
 	// Start with minimal setup - just health endpoint
 	log.Info().Msg("Starting with minimal configuration...")
 
-	// Try to connect to database but don't fail if it's not available
-	var db *postgres.DB
-	log.Info().Msg("Attempting to connect to database...")
-	db, err = postgres.New(cfg.Database.URL)
+	// Connect to database
+	log.Info().Msg("Connecting to database...")
+	db, err := postgres.New(cfg.Database.URL)
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to connect to database - starting without DB")
-		db = nil
-	} else {
-		log.Info().Msg("Connected to PostgreSQL")
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+	log.Info().Msg("Connected to PostgreSQL")
 
 	log.Info().Msg("Initializing JWT manager...")
 	jwtManager, err := token.NewJWTManager(cfg.JWT.PrivateKey, cfg.JWT.PublicKey)
@@ -52,6 +50,11 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("failed to create JWT manager: %w", err)
 	}
 	log.Info().Msg("JWT manager initialized")
+
+	// Initialize metrics
+	log.Info().Msg("Initializing metrics collector...")
+	metricsCollector := metrics.New()
+	log.Info().Msg("Metrics collector initialized")
 
 	// Initialize services only if database is available
 	var router *gin.Engine
@@ -61,21 +64,31 @@ func New() (*App, error) {
 		orgRepo := postgres.NewOrganizationRepo(db)
 		membershipRepo := postgres.NewMembershipRepo(db)
 		refreshRepo := postgres.NewRefreshTokenRepo(db)
+		consentRepo := postgres.NewConsentRepository(db.Pool())
+		auditRepo := postgres.NewAuditLogRepository(db.Pool())
+		emailVerificationRepo := postgres.NewEmailVerificationRepository(db.Pool())
 
 		// Initialize services
 		refreshManager := token.NewRefreshManager()
 		passwordManager := token.NewPasswordManager()
 		serviceConfig := service.NewConfig(cfg)
+		auditService := service.NewAuditService(auditRepo)
+		emailService := service.NewEmailService(emailVerificationRepo, userRepo, auditService)
 		authService := service.NewAuthService(
-			userRepo, orgRepo, membershipRepo, refreshRepo, jwtManager, refreshManager, passwordManager, serviceConfig,
+			userRepo, orgRepo, membershipRepo, refreshRepo, jwtManager, refreshManager, passwordManager, emailService, serviceConfig,
 		)
 		userService := service.NewUserService(userRepo, membershipRepo)
+		consentService := service.NewConsentService(consentRepo)
+		cleanupService := service.NewCleanupService(refreshRepo, auditRepo)
+		gdprService := service.NewGDPRService(userRepo, orgRepo, membershipRepo, refreshRepo, consentRepo, auditRepo)
+		passwordService := service.NewPasswordService(userRepo, refreshRepo, passwordManager, auditService)
+		sessionService := service.NewSessionService(refreshRepo)
 
 		// Setup router with full services
-		router = handler.SetupRouter(authService, userService, jwtManager, db)
+		router = handler.SetupRouter(authService, userService, consentService, auditService, cleanupService, gdprService, passwordService, sessionService, jwtManager, db, cfg, metricsCollector)
 	} else {
 		// Setup minimal router with just health endpoint
-		router = handler.SetupRouter(nil, nil, jwtManager, nil)
+		router = handler.SetupRouter(nil, nil, nil, nil, nil, nil, nil, nil, jwtManager, nil, cfg, metricsCollector)
 	}
 
 	server := &http.Server{

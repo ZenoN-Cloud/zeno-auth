@@ -34,11 +34,8 @@ func NewJWTManager(privateKeyPEM, publicKeyPEM string) (*JWTManager, error) {
 			return nil, err
 		}
 	} else {
-		// Fallback to embedded public key
-		publicKey, err = LoadPublicKeyFromFile()
-		if err != nil {
-			return nil, err
-		}
+		// Extract public key from private key
+		publicKey = &privateKey.PublicKey
 	}
 
 	return &JWTManager{

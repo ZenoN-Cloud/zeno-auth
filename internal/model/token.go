@@ -7,13 +7,14 @@ import (
 )
 
 type RefreshToken struct {
-	ID        uuid.UUID  `json:"id" db:"id"`
-	UserID    uuid.UUID  `json:"user_id" db:"user_id"`
-	OrgID     uuid.UUID  `json:"org_id" db:"org_id"`
-	TokenHash string     `json:"-" db:"token_hash"`
-	UserAgent string     `json:"user_agent" db:"user_agent"`
-	IPAddress string     `json:"ip_address" db:"ip_address"`
-	CreatedAt time.Time  `json:"created_at" db:"created_at"`
-	ExpiresAt time.Time  `json:"expires_at" db:"expires_at"`
-	RevokedAt *time.Time `json:"revoked_at" db:"revoked_at"`
+	ID              uuid.UUID  `json:"id" db:"id"`
+	UserID          uuid.UUID  `json:"user_id" db:"user_id"`
+	OrgID           uuid.UUID  `json:"org_id" db:"org_id"`
+	TokenHash       string     `json:"-" db:"token_hash"`
+	UserAgent       string     `json:"user_agent" db:"user_agent"`
+	IPAddress       string     `json:"ip_address" db:"ip_address"`
+	FingerprintHash *string    `json:"-" db:"fingerprint_hash"`
+	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
+	ExpiresAt       time.Time  `json:"expires_at" db:"expires_at"`
+	RevokedAt       *time.Time `json:"revoked_at" db:"revoked_at"`
 }

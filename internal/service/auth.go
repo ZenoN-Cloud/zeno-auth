@@ -12,6 +12,7 @@ import (
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 )
 
 var (
@@ -28,6 +29,7 @@ type AuthService struct {
 	jwtManager      *token.JWTManager
 	refreshManager  *token.RefreshManager
 	passwordManager token.PasswordHasher
+	emailService    *EmailService
 	config          *Config
 }
 
@@ -39,6 +41,7 @@ func NewAuthService(
 	jwtManager *token.JWTManager,
 	refreshManager *token.RefreshManager,
 	passwordManager token.PasswordHasher,
+	emailService *EmailService,
 	config *Config,
 ) *AuthService {
 	return &AuthService{
@@ -49,12 +52,19 @@ func NewAuthService(
 		jwtManager:      jwtManager,
 		refreshManager:  refreshManager,
 		passwordManager: passwordManager,
+		emailService:    emailService,
 		config:          config,
 	}
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password, fullName string) (*model.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
+
+	// Validate password strength
+	passwordValidator := validator.NewPasswordValidator()
+	if err := passwordValidator.Validate(password); err != nil {
+		return nil, err
+	}
 
 	_, err := s.userRepo.GetByEmail(ctx, email)
 	if err == nil {
@@ -103,6 +113,14 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		return nil, err
 	}
 
+	// Send email verification
+	if s.emailService != nil {
+		if _, err := s.emailService.SendVerificationEmail(ctx, user.ID); err != nil {
+			// Log error but don't fail registration
+			// User can resend verification later
+		}
+	}
+
 	return user, nil
 }
 
@@ -121,12 +139,31 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", ErrUserNotActive
 	}
 
+	// Check if account is locked
+	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
+		return "", "", errors.New("account is locked due to too many failed login attempts")
+	}
+
 	valid, err := s.passwordManager.Verify(ctx, password, user.PasswordHash)
 	if err != nil {
 		return "", "", err
 	}
 	if !valid {
+		// Increment failed attempts
+		user.FailedLoginAttempts++
+		if user.FailedLoginAttempts >= 5 {
+			lockUntil := time.Now().Add(30 * time.Minute)
+			user.LockedUntil = &lockUntil
+		}
+		s.userRepo.Update(ctx, user)
 		return "", "", ErrInvalidCredentials
+	}
+
+	// Reset failed attempts on successful login
+	if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
+		user.FailedLoginAttempts = 0
+		user.LockedUntil = nil
+		s.userRepo.Update(ctx, user)
 	}
 
 	// Get user's organizations
@@ -160,7 +197,10 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", err
 	}
 
+	// Generate fingerprint for session security
+	fingerprint := token.GenerateFingerprint(userAgent, ipAddress, "")
 	refreshToken := s.refreshManager.CreateToken(ctx, user.ID, orgID, refreshTokenStr, userAgent, ipAddress, s.config.RefreshTokenTTL)
+	refreshToken.FingerprintHash = &fingerprint
 	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return "", "", err
 	}
@@ -168,7 +208,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	return accessToken, refreshTokenStr, nil
 }
 
-func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr string) (string, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAgent, ipAddress string) (string, error) {
 	tokenHash := s.refreshManager.Hash(ctx, refreshTokenStr)
 
 	refreshToken, err := s.refreshRepo.GetByTokenHash(ctx, tokenHash)
@@ -178,6 +218,14 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr string) 
 
 	if refreshToken.RevokedAt != nil || refreshToken.ExpiresAt.Before(time.Now()) {
 		return "", ErrInvalidCredentials
+	}
+
+	// Validate session fingerprint to prevent session hijacking
+	if refreshToken.FingerprintHash != nil && *refreshToken.FingerprintHash != "" {
+		currentFingerprint := token.GenerateFingerprint(userAgent, ipAddress, "")
+		if currentFingerprint != *refreshToken.FingerprintHash {
+			return "", errors.New("session fingerprint mismatch - possible session hijacking")
+		}
 	}
 
 	// Get roles if user has organization membership
