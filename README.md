@@ -95,6 +95,7 @@ curl http://localhost:8080/admin/compliance/status
 ### Operations
 - **[docs/CLEANUP_CRON.md](./docs/CLEANUP_CRON.md)** - Data retention & cleanup
 - **[deploy/README.md](./deploy/README.md)** - Production deployment
+- **[SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md)** - ⭐ **Security & deployment checklist**
 - **[api/openapi.yaml](./api/openapi.yaml)** - OpenAPI specification
 
 ## 🏗️ Architecture
@@ -231,6 +232,15 @@ curl http://localhost:8080/health/live
 - ✅ Audit logging
 - ✅ SQL injection prevention (parameterized queries)
 - ✅ XSS prevention
+
+### Production Hardening ✅
+- ✅ Centralized error handling
+- ✅ Non-root Docker user
+- ✅ Fail-fast migrations
+- ✅ Stdout-only logging in production
+- ✅ Protected /metrics and /debug endpoints
+- ✅ golangci-lint in CI
+- ✅ Security test suite
 
 ### TODO
 - ⏳ MFA/2FA (TOTP)

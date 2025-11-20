@@ -110,7 +110,35 @@ deps:
 	go mod tidy
 	go mod download
 
-# Generate JWT private key for development
-gen-key:
+# Generate JWT key pair for development
+generate-keys:
+	@echo "🔑 Generating JWT key pair..."
 	@openssl genrsa -out jwt-private.pem 2048
-	@echo "JWT private key generated: jwt-private.pem"
+	@openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
+	@echo "✅ Keys generated:"
+	@echo "   - jwt-private.pem (keep secret!)"
+	@echo "   - jwt-public.pem"
+	@echo ""
+	@echo "📝 Next steps:"
+	@echo "   1. Copy .env.example to .env.local"
+	@echo "   2. Paste keys into .env.local"
+	@echo "   3. Never commit .env.local!"
+
+gen-key: generate-keys
+
+# Lint code
+lint:
+	@echo "🔍 Running linters..."
+	@which golangci-lint > /dev/null || (echo "Installing golangci-lint..." && go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
+	golangci-lint run --no-config --timeout=5m \
+		--enable-only=errcheck,govet,ineffassign,staticcheck,unused,revive,misspell,gosec \
+		./...
+
+# Format code
+fmt:
+	go fmt ./...
+	goimports -w .
+
+# Vet code
+vet:
+	go vet ./...

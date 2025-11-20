@@ -24,7 +24,8 @@ func SetupLogger(cfg *Config) error {
 		writers = append(writers, os.Stdout)
 	}
 
-	if cfg.Env == "dev" && cfg.Log.File != "" {
+	// Only write to file in dev mode
+	if cfg.Env != "production" && cfg.Env != "prod" && cfg.Log.File != "" {
 		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0755); err != nil {
 			return err
 		}
