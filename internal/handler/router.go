@@ -6,11 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/google/uuid"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
-	"github.com/google/uuid"
 )
 
 type ConsentService interface {
@@ -72,10 +73,11 @@ func SetupRouter(
 		r.GET("/health/live", healthChecker.HealthLive)
 	}
 
-	r.GET("/debug", Debug)
+	// Debug and Metrics endpoints - protected in production
+	r.GET("/debug", AdminAuthMiddleware(), Debug)
 
-	// Metrics endpoint
-	r.GET("/metrics", func(c *gin.Context) {
+	// Metrics endpoint - protected in production
+	r.GET("/metrics", AdminAuthMiddleware(), func(c *gin.Context) {
 		if metricsCollector == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
 			return
@@ -91,12 +93,12 @@ func SetupRouter(
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
 	})
 
-	// Cleanup endpoints (dev only)
+	// Cleanup endpoints (protected)
 	if db != nil {
 		cleanupHandler := NewCleanupHandler(db, cleanupService)
-		r.POST("/debug/cleanup", cleanupHandler.CleanupAll)
+		r.POST("/debug/cleanup", AdminAuthMiddleware(), cleanupHandler.CleanupAll)
 		if cleanupService != nil {
-			r.POST("/debug/cleanup-expired", cleanupHandler.CleanupExpired)
+			r.POST("/debug/cleanup-expired", AdminAuthMiddleware(), cleanupHandler.CleanupExpired)
 		}
 	}
 
@@ -172,10 +174,10 @@ func SetupRouter(
 		}
 	}
 
-	// Admin endpoints (TODO: add admin middleware)
-	admin := r.Group("/admin")
+	// Admin endpoints - protected in production
+	admin := r.Group("/admin", AdminAuthMiddleware())
 	{
-		// Compliance reports - always available
+		// Compliance reports
 		complianceHandler := NewComplianceHandler(nil)
 		admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
 		admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)
