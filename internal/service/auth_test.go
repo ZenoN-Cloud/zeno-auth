@@ -4,11 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
 
 // Mock repositories
@@ -113,9 +114,12 @@ func TestAuthService_Register(t *testing.T) {
 	membershipRepo := &MockMembershipRepo{}
 	passwordHasher := &MockPasswordHasher{}
 
+	// Use strong password that passes validation
+	strongPassword := "SecurePass123!"
+
 	// Mock no existing user
 	userRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(nil, pgx.ErrNoRows)
-	passwordHasher.On("Hash", mock.Anything, "password123").Return("hashed_password", nil)
+	passwordHasher.On("Hash", mock.Anything, strongPassword).Return("hashed_password", nil)
 	userRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.User")).Return(nil)
 	orgRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.Organization")).Return(nil)
 	membershipRepo.On("Create", mock.Anything, mock.AnythingOfType("*model.OrgMembership")).Return(nil)
@@ -128,9 +132,10 @@ func TestAuthService_Register(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	user, err := authService.Register(ctx, "test@example.com", "password123", "Test User")
-
-	assert.NoError(t, err)
+	user, err := authService.Register(ctx, "test@example.com", strongPassword, "Test User")
+	if err != nil {
+		t.Fatalf("Register failed: %v", err)
+	}
 	assert.Equal(t, "test@example.com", user.Email)
 	assert.Equal(t, "Test User", user.FullName)
 	assert.True(t, user.IsActive)

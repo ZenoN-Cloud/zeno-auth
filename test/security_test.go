@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
-	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 )
 
 // MockUserRepo for testing
@@ -68,14 +69,18 @@ func TestAccountLockout(t *testing.T) {
 	}
 
 	// After 5th failed attempt, account should be locked
-	mockRepo.On("GetByEmail", ctx, "test@example.com").Return(user, nil)
-	mockRepo.On("IncrementFailedLogins", ctx, userID).Return(nil).Run(func(args mock.Arguments) {
-		user.FailedLoginAttempts = 5
-		user.LockedUntil = timePtr(time.Now().Add(15 * time.Minute))
-	})
+	mockRepo.On("GetByEmail", ctx, "test@example.com").Return(user, nil).Once()
+	mockRepo.On("IncrementFailedLogins", ctx, userID).Return(nil).Run(
+		func(args mock.Arguments) {
+			user.FailedLoginAttempts = 5
+			user.LockedUntil = timePtr(time.Now().Add(15 * time.Minute))
+		},
+	)
 
-	// Simulate failed login
-	err := mockRepo.IncrementFailedLogins(ctx, userID)
+	// Simulate getting user and incrementing failed logins
+	_, err := mockRepo.GetByEmail(ctx, "test@example.com")
+	assert.NoError(t, err)
+	err = mockRepo.IncrementFailedLogins(ctx, userID)
 	assert.NoError(t, err)
 	assert.Equal(t, 5, user.FailedLoginAttempts)
 	assert.NotNil(t, user.LockedUntil)
@@ -126,16 +131,18 @@ func TestRefreshTokenValidation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Validate token
-			isValid := tt.token.RevokedAt == nil && time.Now().Before(tt.token.ExpiresAt)
-			
-			if tt.expectError {
-				assert.False(t, isValid)
-			} else {
-				assert.True(t, isValid)
-			}
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				// Validate token
+				isValid := tt.token.RevokedAt == nil && time.Now().Before(tt.token.ExpiresAt)
+
+				if tt.expectError {
+					assert.False(t, isValid)
+				} else {
+					assert.True(t, isValid)
+				}
+			},
+		)
 	}
 }
 
@@ -214,30 +221,32 @@ func timePtr(t time.Time) *time.Time {
 // TestSessionFingerprint tests session fingerprint validation
 func TestSessionFingerprint(t *testing.T) {
 	tests := []struct {
-		name              string
-		storedFingerprint string
+		name               string
+		storedFingerprint  string
 		requestFingerprint string
-		expectValid       bool
+		expectValid        bool
 	}{
 		{
-			name:              "Matching fingerprint",
-			storedFingerprint: "fp123",
+			name:               "Matching fingerprint",
+			storedFingerprint:  "fp123",
 			requestFingerprint: "fp123",
-			expectValid:       true,
+			expectValid:        true,
 		},
 		{
-			name:              "Different fingerprint",
-			storedFingerprint: "fp123",
+			name:               "Different fingerprint",
+			storedFingerprint:  "fp123",
 			requestFingerprint: "fp456",
-			expectValid:       false,
+			expectValid:        false,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			isValid := tt.storedFingerprint == tt.requestFingerprint
-			assert.Equal(t, tt.expectValid, isValid)
-		})
+		t.Run(
+			tt.name, func(t *testing.T) {
+				isValid := tt.storedFingerprint == tt.requestFingerprint
+				assert.Equal(t, tt.expectValid, isValid)
+			},
+		)
 	}
 }
 

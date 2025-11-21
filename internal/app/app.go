@@ -75,25 +75,32 @@ func New() (*App, error) {
 		auditService := service.NewAuditService(auditRepo)
 		emailService := service.NewEmailService(emailVerificationRepo, userRepo, auditService)
 		authService := service.NewAuthService(
-			userRepo, orgRepo, membershipRepo, refreshRepo, jwtManager, refreshManager, passwordManager, emailService, serviceConfig,
+			userRepo, orgRepo, membershipRepo, refreshRepo, jwtManager, refreshManager, passwordManager, emailService,
+			serviceConfig,
 		)
 		userService := service.NewUserService(userRepo, membershipRepo)
 		consentService := service.NewConsentService(consentRepo)
 		cleanupService := service.NewCleanupService(refreshRepo, auditRepo)
 		gdprService := service.NewGDPRService(userRepo, orgRepo, membershipRepo, refreshRepo, consentRepo, auditRepo)
-		passwordService := service.NewPasswordService(userRepo, refreshRepo, passwordManager, auditService)
+		passwordService := service.NewPasswordService(
+			userRepo, refreshRepo, passwordManager, auditService, emailService,
+		)
 		sessionService := service.NewSessionService(refreshRepo)
 
 		// Setup router with full services
-		router = handler.SetupRouter(authService, userService, consentService, auditService, cleanupService, gdprService, passwordService, sessionService, jwtManager, db, cfg, metricsCollector)
+		router = handler.SetupRouter(
+			authService, userService, consentService, auditService, cleanupService, gdprService, passwordService,
+			sessionService, jwtManager, db, cfg, metricsCollector,
+		)
 	} else {
 		// Setup minimal router with just health endpoint
 		router = handler.SetupRouter(nil, nil, nil, nil, nil, nil, nil, nil, jwtManager, nil, cfg, metricsCollector)
 	}
 
 	server := &http.Server{
-		Addr:    ":" + cfg.Server.Port,
-		Handler: router,
+		Addr:              ":" + cfg.Server.Port,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return &App{

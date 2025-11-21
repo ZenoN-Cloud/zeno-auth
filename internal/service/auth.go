@@ -154,6 +154,10 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		if user.FailedLoginAttempts >= 5 {
 			lockUntil := time.Now().Add(30 * time.Minute)
 			user.LockedUntil = &lockUntil
+			// Notify user about account lockout
+			if s.emailService != nil {
+				go s.emailService.SendAccountLockoutNotification(ctx, user.ID, lockUntil)
+			}
 		}
 		s.userRepo.Update(ctx, user)
 		return "", "", ErrInvalidCredentials

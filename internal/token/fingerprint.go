@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"strings"
 )
 
 type Fingerprint struct {
@@ -14,11 +13,8 @@ type Fingerprint struct {
 }
 
 func GenerateFingerprint(userAgent, ipAddress, acceptLanguage string) string {
-	ipParts := strings.Split(ipAddress, ".")
-	if len(ipParts) >= 3 {
-		ipAddress = strings.Join(ipParts[:3], ".") + ".0"
-	}
-
+	// Use full IP address for better security
+	// Previous implementation used only first 3 octets which was too weak
 	data := fmt.Sprintf("%s|%s|%s", userAgent, ipAddress, acceptLanguage)
 	hash := sha256.Sum256([]byte(data))
 	return hex.EncodeToString(hash[:])

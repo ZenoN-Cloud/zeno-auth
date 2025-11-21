@@ -13,7 +13,7 @@ import (
 func AdminAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		env := os.Getenv("ENV")
-		
+
 		// In development: allow all
 		if env == "dev" || env == "development" {
 			c.Next()
@@ -27,7 +27,7 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 			// Check credentials from env
 			expectedUser := os.Getenv("ADMIN_USERNAME")
 			expectedPass := os.Getenv("ADMIN_PASSWORD")
-			
+
 			if username == expectedUser && password == expectedPass && expectedUser != "" {
 				c.Next()
 				return

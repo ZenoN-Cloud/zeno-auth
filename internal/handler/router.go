@@ -159,7 +159,7 @@ func SetupRouter(
 			}
 
 			if gdprService != nil {
-				gdprHandler := NewGDPRHandler(gdprService, auditService)
+				gdprHandler := NewGDPRHandler(gdprService, auditService, emailService)
 				me.GET("/data-export", gdprHandler.ExportData)
 				me.DELETE("/account", gdprHandler.DeleteAccount)
 			}

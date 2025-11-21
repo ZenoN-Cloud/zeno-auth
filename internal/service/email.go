@@ -131,3 +131,76 @@ func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
+
+// SendAccountDeletionNotification sends email notification when account is deleted (GDPR Art. 34)
+func (s *EmailService) SendAccountDeletionNotification(ctx context.Context, userID uuid.UUID) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to get user for deletion notification")
+		return err
+	}
+
+	// TODO: Send actual email via SendGrid/AWS SES
+	log.Info().
+		Str("user_id", userID.String()).
+		Str("email", user.Email).
+		Msg("Account deletion notification (email sending not implemented)")
+
+	return nil
+}
+
+// SendDataExportNotification sends email notification when data is exported (GDPR Art. 34)
+func (s *EmailService) SendDataExportNotification(ctx context.Context, userID uuid.UUID) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to get user for export notification")
+		return err
+	}
+
+	// TODO: Send actual email via SendGrid/AWS SES
+	log.Info().
+		Str("user_id", userID.String()).
+		Str("email", user.Email).
+		Msg("Data export notification (email sending not implemented)")
+
+	return nil
+}
+
+// SendAccountLockoutNotification sends email notification when account is locked due to failed login attempts
+func (s *EmailService) SendAccountLockoutNotification(
+	ctx context.Context,
+	userID uuid.UUID,
+	lockedUntil time.Time,
+) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to get user for lockout notification")
+		return err
+	}
+
+	// TODO: Send actual email via SendGrid/AWS SES
+	log.Warn().
+		Str("user_id", userID.String()).
+		Str("email", user.Email).
+		Time("locked_until", lockedUntil).
+		Msg("Account lockout notification (email sending not implemented)")
+
+	return nil
+}
+
+// SendPasswordChangedNotification sends email notification when password is changed
+func (s *EmailService) SendPasswordChangedNotification(ctx context.Context, userID uuid.UUID) error {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		log.Error().Err(err).Str("user_id", userID.String()).Msg("Failed to get user for password change notification")
+		return err
+	}
+
+	// TODO: Send actual email via SendGrid/AWS SES
+	log.Info().
+		Str("user_id", userID.String()).
+		Str("email", user.Email).
+		Msg("Password changed notification (email sending not implemented)")
+
+	return nil
+}

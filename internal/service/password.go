@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
-	"github.com/google/uuid"
 )
 
 type PasswordService struct {
@@ -14,6 +15,7 @@ type PasswordService struct {
 	refreshRepo     RefreshTokenRepository
 	passwordManager *token.PasswordManager
 	auditService    *AuditService
+	emailService    *EmailService
 }
 
 func NewPasswordService(
@@ -21,16 +23,22 @@ func NewPasswordService(
 	refreshRepo RefreshTokenRepository,
 	passwordManager *token.PasswordManager,
 	auditService *AuditService,
+	emailService *EmailService,
 ) *PasswordService {
 	return &PasswordService{
 		userRepo:        userRepo,
 		refreshRepo:     refreshRepo,
 		passwordManager: passwordManager,
 		auditService:    auditService,
+		emailService:    emailService,
 	}
 }
 
-func (s *PasswordService) ChangePassword(ctx context.Context, userID uuid.UUID, currentPassword, newPassword, ipAddress, userAgent string) error {
+func (s *PasswordService) ChangePassword(
+	ctx context.Context,
+	userID uuid.UUID,
+	currentPassword, newPassword, ipAddress, userAgent string,
+) error {
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("user not found: %w", err)
@@ -65,6 +73,11 @@ func (s *PasswordService) ChangePassword(ctx context.Context, userID uuid.UUID, 
 	// Audit log
 	if s.auditService != nil {
 		s.auditService.Log(ctx, &userID, "password_changed", nil, ipAddress, userAgent)
+	}
+
+	// Send email notification
+	if s.emailService != nil {
+		go s.emailService.SendPasswordChangedNotification(ctx, userID)
 	}
 
 	return nil

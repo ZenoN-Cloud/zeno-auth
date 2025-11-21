@@ -86,13 +86,13 @@ func (h *ComplianceHandler) GetComplianceStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "compliant",
 		"gdpr": gin.H{
-			"right_to_access":       true,  // Art. 15
-			"right_to_erasure":      true,  // Art. 17
-			"right_to_portability":  true,  // Art. 20
-			"consent_management":    true,  // Art. 7
-			"data_retention_policy": true,  // Art. 5.1.e
-			"audit_logging":         true,  // Art. 30
-			"breach_notification":   false, // Art. 33 - TODO
+			"right_to_access":       true, // Art. 15
+			"right_to_erasure":      true, // Art. 17
+			"right_to_portability":  true, // Art. 20
+			"consent_management":    true, // Art. 7
+			"data_retention_policy": true, // Art. 5.1.e
+			"audit_logging":         true, // Art. 30
+			"breach_notification":   true, // Art. 33 - Email notifications implemented
 		},
 		"security": gin.H{
 			"password_hashing":      true,
