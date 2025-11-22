@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog/log"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/bootstrap"
@@ -26,6 +27,15 @@ func New() (*App, error) {
 
 	if err := config.SetupLogger(cfg); err != nil {
 		return nil, fmt.Errorf("failed to setup logger: %w", err)
+	}
+
+	// Set Gin mode based on environment
+	if cfg.Env == "prod" || cfg.Env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	} else if cfg.Env == "test" {
+		gin.SetMode(gin.TestMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
 	}
 
 	log.Info().Msg("Building application container...")
@@ -52,7 +62,10 @@ func New() (*App, error) {
 	server := &http.Server{
 		Addr:              ":" + container.Config.Server.Port,
 		Handler:           router,
+		ReadTimeout:       15 * time.Second,
 		ReadHeaderTimeout: 10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	return &App{

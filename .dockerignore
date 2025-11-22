@@ -34,9 +34,6 @@ logs/
 *.swp
 *~
 
-# Tests
-test/
-
 # Scripts (not needed in container)
 scripts/*
 !scripts/entrypoint.sh

@@ -53,6 +53,16 @@ services:
         yKfRHYBmjuIuzSDRbGIIkY8bAh59a6gETdMmPL6q4RBfUxhgRgu3axt/I51HFqL0
         E6+XJ0hEgQ4TzMRglfhSUNk=
         -----END PRIVATE KEY-----
+      JWT_PUBLIC_KEY: |
+        -----BEGIN PUBLIC KEY-----
+        MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArVEUufzIWRh362kEWXm3
+        P73mpuUMTCzT4oyVGGotmkCUMG6TR3L2298XND+pKZ12Cr3KO/7sbsatqcXkyARI
+        wZ5htLZsbxhix3smG3t8ZFGQSqDYpM49N45zTecT4t9N8XtBJ/gr4UBZEcsRO6kH
+        d19kqHjy54HG9ypXjvRMCBaDQ4aZQ4UEEB8T7mLfYQicuub/7qFwIkZSRJAGdn/J
+        JSe6S035G2J7Tj+oCcIhFQT5l8ua74lLD495njGAbCTTT6zFiZuHFANpMt7NiWzQ
+        pp13gNwyVJ4FHqQpJbMqpYZMjDXlsyuXPS+bPGN6Pi5gqMtwB5B7aya2TPpE8BF9
+        1wIDAQAB
+        -----END PUBLIC KEY-----
     ports:
       - "8080:8080"
     healthcheck:
@@ -65,7 +75,14 @@ services:
   test-runner:
     build:
       context: .
-      dockerfile: Dockerfile.test
+      dockerfile_inline: |
+        FROM golang:1.25-alpine
+        WORKDIR /app
+        RUN apk add --no-cache git curl postgresql-client
+        COPY go.mod go.sum ./
+        RUN go mod download
+        COPY . .
+        CMD ["sh", "-c", "sleep 5 && go test -v -timeout 5m -tags=integration ./test"]
     depends_on:
       app:
         condition: service_healthy

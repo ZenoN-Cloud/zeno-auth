@@ -9,4 +9,4 @@ RUN go mod download
 
 COPY . .
 
-CMD ["sh", "-c", "sleep 5 && go test -v -timeout 5m ./test/..."]
+CMD ["sh", "-c", "sleep 5 && go test -v -timeout 5m -tags=integration ./test"]

@@ -10,7 +10,7 @@ import (
 
 func Load() (*Config, error) {
 	env := os.Getenv("ENV")
-	if env != "prod" {
+	if env != "prod" && env != "production" {
 		_ = godotenv.Load()
 	}
 
@@ -46,12 +46,36 @@ func Load() (*Config, error) {
 }
 
 func validate(cfg *Config) error {
-	if cfg.JWT.PrivateKey == "" {
+	// Skip JWT validation for cleanup jobs
+	skipJWT := os.Getenv("SKIP_JWT_VALIDATION") == "1"
+	if !skipJWT && cfg.JWT.PrivateKey == "" {
 		return fmt.Errorf("JWT_PRIVATE_KEY is required")
 	}
+
+	// Validate port
 	if port, err := strconv.Atoi(cfg.Server.Port); err != nil || port <= 0 {
 		return fmt.Errorf("PORT must be a valid positive integer")
 	}
+
+	// Validate database URL (skip for cleanup jobs)
+	if !skipJWT && cfg.Database.URL == "" {
+		return fmt.Errorf("DATABASE_URL is required")
+	}
+
+	// Validate token TTLs
+	if cfg.JWT.AccessTokenTTL <= 0 {
+		return fmt.Errorf("ACCESS_TOKEN_TTL must be positive")
+	}
+	if cfg.JWT.RefreshTokenTTL <= 0 {
+		return fmt.Errorf("REFRESH_TOKEN_TTL must be positive")
+	}
+
+	// Validate environment
+	validEnvs := map[string]bool{"dev": true, "development": true, "staging": true, "prod": true, "production": true, "test": true}
+	if !validEnvs[cfg.Env] {
+		return fmt.Errorf("ENV must be one of: dev, development, staging, prod, production, test")
+	}
+
 	return nil
 }
 

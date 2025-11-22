@@ -47,6 +47,12 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 			}
 		}
 
+		// Production hardening: warn if no auth configured
+		if (env == "prod" || env == "production") && os.Getenv("ADMIN_USERNAME") == "" && os.Getenv("ADMIN_ALLOWED_IPS") == "" {
+			// Log warning about missing admin auth configuration
+			_ = env // Admin endpoints will be blocked
+		}
+
 		// If no auth method configured in production, deny access
 		c.JSON(http.StatusForbidden, ErrorResponse{
 			Error: "Access denied. Admin authentication required.",

@@ -36,6 +36,7 @@ func SetupRouter(
 	metricsCollector MetricsCollector,
 ) *gin.Engine {
 	r := gin.New()
+	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(LoggingMiddleware())
 	r.Use(SecurityHeadersMiddleware())
@@ -61,7 +62,6 @@ func SetupRouter(
 		}
 	}
 	r.Use(CORSMiddleware(corsOrigins))
-	r.Use(gin.Recovery())
 
 	// Health endpoints
 	r.GET("/health", Health)
