@@ -18,6 +18,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    if: ${{ secrets.WIF_PROVIDER_PROD != '' && secrets.WIF_SERVICE_ACCOUNT_PROD != '' }}
     
     permissions:
       contents: read

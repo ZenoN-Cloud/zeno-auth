@@ -17,6 +17,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: dev
+    if: ${{ secrets.WIF_PROVIDER != '' && secrets.WIF_SERVICE_ACCOUNT != '' }}
     
     permissions:
       contents: read
