@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
 
 type OrganizationRepo struct {
@@ -17,6 +19,9 @@ func NewOrganizationRepo(db *DB) *OrganizationRepo {
 }
 
 func (r *OrganizationRepo) Create(ctx context.Context, org *model.Organization) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `
 		INSERT INTO organizations (name, owner_user_id, status, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -29,7 +34,26 @@ func (r *OrganizationRepo) Create(ctx context.Context, org *model.Organization) 
 	return r.db.pool.QueryRow(ctx, query, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID)
 }
 
+func (r *OrganizationRepo) CreateTx(ctx context.Context, tx *sql.Tx, org *model.Organization) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO organizations (name, owner_user_id, status, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id`
+
+	now := time.Now()
+	org.CreatedAt = now
+	org.UpdatedAt = now
+
+	return tx.QueryRowContext(ctx, query, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID)
+}
+
 func (r *OrganizationRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Organization, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `SELECT id, name, owner_user_id, status, created_at, updated_at FROM organizations WHERE id = $1`
 
 	org := &model.Organization{}
@@ -38,6 +62,9 @@ func (r *OrganizationRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Or
 }
 
 func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Organization, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	query := `
 		SELECT o.id, o.name, o.owner_user_id, o.status, o.created_at, o.updated_at 
 		FROM organizations o
@@ -68,6 +95,9 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 }
 
 func (r *OrganizationRepo) Update(ctx context.Context, org *model.Organization) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `UPDATE organizations SET name = $2, status = $3, updated_at = $4 WHERE id = $1`
 
 	org.UpdatedAt = time.Now()

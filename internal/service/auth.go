@@ -11,6 +11,7 @@ import (
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 )
@@ -31,6 +32,7 @@ type AuthService struct {
 	passwordManager token.PasswordHasher
 	emailService    *EmailService
 	config          *Config
+	db              *postgres.DB
 }
 
 func NewAuthService(
@@ -43,6 +45,7 @@ func NewAuthService(
 	passwordManager token.PasswordHasher,
 	emailService *EmailService,
 	config *Config,
+	db *postgres.DB,
 ) *AuthService {
 	return &AuthService{
 		userRepo:        userRepo,
@@ -54,10 +57,14 @@ func NewAuthService(
 		passwordManager: passwordManager,
 		emailService:    emailService,
 		config:          config,
+		db:              db,
 	}
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password, fullName string) (*model.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	// Validate password strength
@@ -79,6 +86,13 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		return nil, err
 	}
 
+	// Start transaction for atomic registration
+	tx, err := s.db.BeginTx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	user := &model.User{
 		Email:        email,
 		PasswordHash: passwordHash,
@@ -86,7 +100,8 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		IsActive:     true,
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	// Create user
+	if err := s.userRepo.CreateTx(ctx, tx, user); err != nil {
 		return nil, err
 	}
 
@@ -97,7 +112,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		Status:      "active",
 	}
 
-	if err := s.orgRepo.Create(ctx, org); err != nil {
+	if err := s.orgRepo.CreateTx(ctx, tx, org); err != nil {
 		return nil, err
 	}
 
@@ -109,16 +124,19 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		IsActive: true,
 	}
 
-	if err := s.membershipRepo.Create(ctx, membership); err != nil {
+	if err := s.membershipRepo.CreateTx(ctx, tx, membership); err != nil {
 		return nil, err
 	}
 
-	// Send email verification
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	// Send email verification (outside transaction)
 	if s.emailService != nil {
-		if _, err := s.emailService.SendVerificationEmail(ctx, user.ID); err != nil {
-			// Log error but don't fail registration
-			// User can resend verification later
-		}
+		_, _ = s.emailService.SendVerificationEmail(ctx, user.ID)
+		// Errors are logged internally, don't fail registration
 	}
 
 	return user, nil
@@ -156,10 +174,10 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 			user.LockedUntil = &lockUntil
 			// Notify user about account lockout
 			if s.emailService != nil {
-				go s.emailService.SendAccountLockoutNotification(ctx, user.ID, lockUntil)
+				go func() { _ = s.emailService.SendAccountLockoutNotification(ctx, user.ID, lockUntil) }()
 			}
 		}
-		s.userRepo.Update(ctx, user)
+		_ = s.userRepo.Update(ctx, user)
 		return "", "", ErrInvalidCredentials
 	}
 
@@ -167,7 +185,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
 		user.FailedLoginAttempts = 0
 		user.LockedUntil = nil
-		s.userRepo.Update(ctx, user)
+		_ = s.userRepo.Update(ctx, user)
 	}
 
 	// Get user's organizations

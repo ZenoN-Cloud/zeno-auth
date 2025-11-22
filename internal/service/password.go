@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 )
@@ -16,6 +18,7 @@ type PasswordService struct {
 	passwordManager *token.PasswordManager
 	auditService    *AuditService
 	emailService    *EmailService
+	db              *postgres.DB
 }
 
 func NewPasswordService(
@@ -24,6 +27,7 @@ func NewPasswordService(
 	passwordManager *token.PasswordManager,
 	auditService *AuditService,
 	emailService *EmailService,
+	db *postgres.DB,
 ) *PasswordService {
 	return &PasswordService{
 		userRepo:        userRepo,
@@ -31,6 +35,7 @@ func NewPasswordService(
 		passwordManager: passwordManager,
 		auditService:    auditService,
 		emailService:    emailService,
+		db:              db,
 	}
 }
 
@@ -39,12 +44,15 @@ func (s *PasswordService) ChangePassword(
 	userID uuid.UUID,
 	currentPassword, newPassword, ipAddress, userAgent string,
 ) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("user not found: %w", err)
 	}
 
-	valid, err := s.passwordManager.Verify(context.Background(), currentPassword, user.PasswordHash)
+	valid, err := s.passwordManager.Verify(ctx, currentPassword, user.PasswordHash)
 	if err != nil || !valid {
 		return fmt.Errorf("current password is incorrect")
 	}
@@ -55,29 +63,42 @@ func (s *PasswordService) ChangePassword(
 		return err
 	}
 
-	newHash, err := s.passwordManager.Hash(context.Background(), newPassword)
+	newHash, err := s.passwordManager.Hash(ctx, newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	// Start transaction for atomic password change
+	tx, err := s.db.BeginTx(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// Update password
 	user.PasswordHash = newHash
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	if err := s.userRepo.UpdateTx(ctx, tx, user); err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
 	// Revoke all refresh tokens to force re-login
-	if err := s.refreshRepo.RevokeByUserID(ctx, userID); err != nil {
+	if err := s.refreshRepo.RevokeByUserIDTx(ctx, tx, userID); err != nil {
 		return fmt.Errorf("failed to revoke tokens: %w", err)
 	}
 
-	// Audit log
-	if s.auditService != nil {
-		s.auditService.Log(ctx, &userID, "password_changed", nil, ipAddress, userAgent)
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Send email notification
+	// Audit log (outside transaction)
+	if s.auditService != nil {
+		_ = s.auditService.Log(ctx, &userID, "password_changed", nil, ipAddress, userAgent)
+	}
+
+	// Send email notification (outside transaction)
 	if s.emailService != nil {
-		go s.emailService.SendPasswordChangedNotification(ctx, userID)
+		go func() { _ = s.emailService.SendPasswordChangedNotification(ctx, userID) }()
 	}
 
 	return nil

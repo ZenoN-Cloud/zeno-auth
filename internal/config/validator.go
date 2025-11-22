@@ -62,3 +62,14 @@ func (c *Config) Validate() error {
 
 	return nil
 }
+
+// Validate проверяет корректность конфигурации базы данных
+func (d *Database) Validate() error {
+	if d.URL == "" {
+		return fmt.Errorf("database URL is required")
+	}
+	if !strings.HasPrefix(d.URL, "postgres://") && !strings.HasPrefix(d.URL, "postgresql://") {
+		return fmt.Errorf("database URL must start with postgres:// or postgresql://")
+	}
+	return nil
+}

@@ -3,10 +3,13 @@ package handler
 import (
 	"net/http"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
-	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/errors"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/response"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 )
 
 type AuthHandler struct {
@@ -30,18 +33,20 @@ func NewAuthHandler(authService service.AuthServiceInterface, emailService *serv
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		response.BadRequest(c, "Invalid request data")
 		return
 	}
 
 	// Validate and sanitize input
 	inputValidator := validator.NewInputValidator()
 	if err := inputValidator.ValidateEmail(req.Email); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 	if err := inputValidator.ValidateName(req.FullName); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 
@@ -50,23 +55,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, req.FullName)
 	if err != nil {
-		switch err {
-		case service.ErrEmailExists:
-			c.JSON(http.StatusConflict, ErrorResponse{Error: "Email already exists"})
-		case validator.ErrPasswordTooShort, validator.ErrPasswordNoUppercase,
-			validator.ErrPasswordNoLowercase, validator.ErrPasswordNoDigit,
-			validator.ErrPasswordCommon, validator.ErrInvalidEmail,
-			validator.ErrNameTooLong, validator.ErrNameInvalidChars:
-			c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
-		default:
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Registration failed"})
-		}
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 
 	// Audit log
 	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), &user.ID, "user_registered", map[string]interface{}{"email": user.Email}, c.ClientIP(), c.GetHeader("User-Agent"))
+		_ = h.auditService.Log(c.Request.Context(), &user.ID, "user_registered", map[string]interface{}{"email": user.Email}, c.ClientIP(), c.GetHeader("User-Agent"))
 	}
 
 	// Metrics
@@ -74,7 +70,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		h.metrics.IncrementRegistrations()
 	}
 
-	c.JSON(http.StatusCreated, UserResponse{
+	response.Success(c, http.StatusCreated, UserResponse{
 		ID:       user.ID,
 		Email:    user.Email,
 		FullName: user.FullName,
@@ -85,7 +81,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		response.BadRequest(c, "Invalid request data")
 		return
 	}
 
@@ -96,25 +92,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		// Audit log failed login
 		if h.auditService != nil {
-			h.auditService.Log(c.Request.Context(), nil, "login_failed", map[string]interface{}{"email": req.Email, "reason": err.Error()}, ipAddress, userAgent)
+			_ = h.auditService.Log(c.Request.Context(), nil, "login_failed", map[string]interface{}{"email": req.Email, "reason": err.Error()}, ipAddress, userAgent)
 		}
 		// Metrics
 		if h.metrics != nil {
 			h.metrics.IncrementLoginFailures()
 		}
-		if err == service.ErrInvalidCredentials || err == service.ErrUserNotActive {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Invalid credentials"})
-			return
-		}
-		// Log the actual error for debugging
-		c.Error(err)
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Login failed"})
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 
 	// Audit log successful login
 	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), nil, "user_logged_in", map[string]interface{}{"email": req.Email}, ipAddress, userAgent)
+		_ = h.auditService.Log(c.Request.Context(), nil, "user_logged_in", map[string]interface{}{"email": req.Email}, ipAddress, userAgent)
 	}
 
 	// Metrics
@@ -122,7 +113,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		h.metrics.IncrementLogins()
 	}
 
-	c.JSON(http.StatusOK, AuthResponse{
+	response.Success(c, http.StatusOK, AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	})
@@ -131,7 +122,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req RefreshRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		response.BadRequest(c, "Invalid request data")
 		return
 	}
 
@@ -140,7 +131,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	accessToken, err := h.authService.RefreshToken(c.Request.Context(), req.RefreshToken, userAgent, ipAddress)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Invalid refresh token"})
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 
@@ -149,33 +141,34 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		h.metrics.IncrementTokenRefreshes()
 	}
 
-	c.JSON(http.StatusOK, gin.H{"access_token": accessToken})
+	response.Success(c, http.StatusOK, gin.H{"access_token": accessToken})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
+		response.Unauthorized(c, "Unauthorized")
 		return
 	}
 
 	userUUID, err := uuid.Parse(userID.(string))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID"})
+		response.BadRequest(c, "Invalid user ID")
 		return
 	}
 
 	if err := h.authService.Logout(c.Request.Context(), userUUID); err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Logout failed"})
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
 
 	// Audit log
 	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), &userUUID, "user_logged_out", nil, c.ClientIP(), c.GetHeader("User-Agent"))
+		_ = h.auditService.Log(c.Request.Context(), &userUUID, "user_logged_out", nil, c.ClientIP(), c.GetHeader("User-Agent"))
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+	response.Success(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
 func (h *AuthHandler) VerifyEmail(c *gin.Context) {

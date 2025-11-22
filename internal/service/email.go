@@ -104,7 +104,7 @@ func (s *EmailService) VerifyEmail(ctx context.Context, token, ipAddress, userAg
 
 	// Audit log
 	if s.auditService != nil {
-		s.auditService.Log(ctx, &verification.UserID, "email_verified", nil, ipAddress, userAgent)
+		_ = s.auditService.Log(ctx, &verification.UserID, "email_verified", nil, ipAddress, userAgent)
 	}
 
 	return nil

@@ -11,7 +11,7 @@ info:
     - GDPR compliance features
     - Session management
     
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: ZenoN-Cloud Team
     url: https://github.com/ZenoN-Cloud/zeno-auth
@@ -97,7 +97,25 @@ paths:
               schema:
                 type: object
 
-  /auth/register:
+  /.well-known/jwks.json:
+    get:
+      tags: [Authentication]
+      summary: JSON Web Key Set
+      description: Returns public keys for JWT verification (RFC 7517)
+      responses:
+        '200':
+          description: JWKS response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+
+  /v1/auth/register:
     post:
       tags: [Authentication]
       summary: Register new user
@@ -118,6 +136,13 @@ paths:
                   type: string
                   format: password
                   minLength: 8
+                  description: |
+                    Password must meet the following requirements:
+                    - At least 8 characters long
+                    - At least 1 uppercase letter (A-Z)
+                    - At least 1 lowercase letter (a-z)
+                    - At least 1 digit (0-9)
+                    - Must not be a common password
                   example: SecurePass123
                 full_name:
                   type: string
@@ -132,7 +157,7 @@ paths:
         '429':
           description: Rate limit exceeded
 
-  /auth/login:
+  /v1/auth/login:
     post:
       tags: [Authentication]
       summary: User login
@@ -168,7 +193,7 @@ paths:
         '429':
           description: Rate limit exceeded
 
-  /auth/refresh:
+  /v1/auth/refresh:
     post:
       tags: [Authentication]
       summary: Refresh access token
@@ -189,7 +214,7 @@ paths:
         '401':
           description: Invalid refresh token
 
-  /auth/logout:
+  /v1/auth/logout:
     post:
       tags: [Authentication]
       summary: User logout
@@ -202,7 +227,88 @@ paths:
         '401':
           description: Unauthorized
 
-  /me:
+  /v1/auth/verify-email:
+    post:
+      tags: [Authentication]
+      summary: Verify email address
+      description: Verifies user's email address using token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Email verified
+        '400':
+          description: Invalid token
+
+  /v1/auth/resend-verification:
+    post:
+      tags: [Authentication]
+      summary: Resend verification email
+      description: Resends email verification link
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Verification email sent
+        '401':
+          description: Unauthorized
+
+  /v1/auth/forgot-password:
+    post:
+      tags: [Authentication]
+      summary: Request password reset
+      description: Sends password reset link to user's email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset link sent (if email exists)
+        '429':
+          description: Rate limit exceeded
+
+  /v1/auth/reset-password:
+    post:
+      tags: [Authentication]
+      summary: Reset password
+      description: Resets password using reset token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token:
+                  type: string
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Password reset successful
+        '400':
+          description: Invalid token
+
+  /v1/me:
     get:
       tags: [User]
       summary: Get user profile
@@ -215,7 +321,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /me/change-password:
+  /v1/me/change-password:
     post:
       tags: [User]
       summary: Change password
@@ -245,7 +351,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /me/data-export:
+  /v1/me/data-export:
     get:
       tags: [GDPR]
       summary: Export user data
@@ -258,7 +364,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /me/account:
+  /v1/me/account:
     delete:
       tags: [GDPR]
       summary: Delete user account
@@ -271,7 +377,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /me/sessions:
+  /v1/me/sessions:
     get:
       tags: [Sessions]
       summary: List active sessions
@@ -295,7 +401,7 @@ paths:
         '401':
           description: Unauthorized
 
-  /me/sessions/{id}:
+  /v1/me/sessions/{id}:
     delete:
       tags: [Sessions]
       summary: Revoke specific session
@@ -317,7 +423,7 @@ paths:
         '404':
           description: Session not found
 
-  /me/consents:
+  /v1/me/consents:
     get:
       tags: [Consent]
       summary: Get user consents
@@ -395,6 +501,72 @@ paths:
         '403':
           description: Forbidden (admin only)
 
+  # Legacy endpoints (without /v1 prefix) for backward compatibility
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new user (legacy)
+      deprecated: true
+      description: |
+        **DEPRECATED:** Use `/v1/auth/register` instead.
+        This endpoint is maintained for backward compatibility.
+      requestBody:
+        $ref: '#/paths/~1v1~1auth~1register/post/requestBody'
+      responses:
+        $ref: '#/paths/~1v1~1auth~1register/post/responses'
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login (legacy)
+      deprecated: true
+      description: |
+        **DEPRECATED:** Use `/v1/auth/login` instead.
+        This endpoint is maintained for backward compatibility.
+      requestBody:
+        $ref: '#/paths/~1v1~1auth~1login/post/requestBody'
+      responses:
+        $ref: '#/paths/~1v1~1auth~1login/post/responses'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token (legacy)
+      deprecated: true
+      description: |
+        **DEPRECATED:** Use `/v1/auth/refresh` instead.
+        This endpoint is maintained for backward compatibility.
+      requestBody:
+        $ref: '#/paths/~1v1~1auth~1refresh/post/requestBody'
+      responses:
+        $ref: '#/paths/~1v1~1auth~1refresh/post/responses'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout (legacy)
+      deprecated: true
+      description: |
+        **DEPRECATED:** Use `/v1/auth/logout` instead.
+        This endpoint is maintained for backward compatibility.
+      security:
+        - BearerAuth: []
+      responses:
+        $ref: '#/paths/~1v1~1auth~1logout/post/responses'
+
+  /me:
+    get:
+      tags: [User]
+      summary: Get user profile (legacy)
+      deprecated: true
+      description: |
+        **DEPRECATED:** Use `/v1/me` instead.
+        This endpoint is maintained for backward compatibility.
+      security:
+        - BearerAuth: []
+      responses:
+        $ref: '#/paths/~1v1~1me/get/responses'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -406,9 +578,24 @@ components:
     Error:
       type: object
       properties:
-        error:
+        status:
           type: string
-          example: Invalid input
+          example: error
+        code:
+          type: string
+          example: invalid_input
+        message:
+          type: string
+          example: Invalid input data
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        data:
+          type: object
 
     User:
       type: object
@@ -426,5 +613,38 @@ components:
         created_at:
           type: string
           format: date-time
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_agent:
+          type: string
+        ip_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    Consent:
+      type: object
+      properties:
+        consent_type:
+          type: string
+          enum: [terms, privacy, marketing, analytics, data_processing]
+        version:
+          type: string
+        granted_at:
+          type: string
+          format: date-time
+        revoked_at:
+          type: string
+          format: date-time
+          nullable: true
 
 security: []

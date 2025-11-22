@@ -47,12 +47,12 @@ func (h *GDPRHandler) ExportData(c *gin.Context) {
 	}
 
 	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), &uid, "data_exported", nil, c.ClientIP(), c.Request.UserAgent())
+		_ = h.auditService.Log(c.Request.Context(), &uid, "data_exported", nil, c.ClientIP(), c.Request.UserAgent())
 	}
 
 	// Send email notification (GDPR Art. 34)
 	if h.emailService != nil {
-		go h.emailService.SendDataExportNotification(c.Request.Context(), uid)
+		go func() { _ = h.emailService.SendDataExportNotification(c.Request.Context(), uid) }()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": data})
@@ -72,12 +72,12 @@ func (h *GDPRHandler) DeleteAccount(c *gin.Context) {
 	}
 
 	if h.auditService != nil {
-		h.auditService.Log(c.Request.Context(), &uid, "account_deleted", nil, c.ClientIP(), c.Request.UserAgent())
+		_ = h.auditService.Log(c.Request.Context(), &uid, "account_deleted", nil, c.ClientIP(), c.Request.UserAgent())
 	}
 
 	// Send email notification (GDPR Art. 34)
 	if h.emailService != nil {
-		go h.emailService.SendAccountDeletionNotification(c.Request.Context(), uid)
+		go func() { _ = h.emailService.SendAccountDeletionNotification(c.Request.Context(), uid) }()
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Account deleted successfully"})

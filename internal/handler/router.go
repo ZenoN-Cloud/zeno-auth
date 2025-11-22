@@ -131,47 +131,67 @@ func SetupRouter(
 		userHandler := NewUserHandler(userService, passwordService)
 		jwksHandler := NewJWKSHandler(jwtManager)
 
-		r.GET("/jwks", jwksHandler.GetJWKS)
+		// JWKS endpoint (no versioning for standards compliance)
+		r.GET("/.well-known/jwks.json", jwksHandler.GetJWKS)
+		r.GET("/jwks", jwksHandler.GetJWKS) // Legacy endpoint
 
+		// API v1 routes
+		v1 := r.Group("/v1")
+		{
+			auth := v1.Group("/auth")
+			{
+				auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
+				auth.POST("/login", LoginRateLimiter(), authHandler.Login)
+				auth.POST("/refresh", RefreshRateLimiter(), authHandler.Refresh)
+				auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
+				auth.POST("/verify-email", authHandler.VerifyEmail)
+				auth.POST("/resend-verification", AuthMiddleware(jwtManager), authHandler.ResendVerification)
+				auth.POST("/forgot-password", authHandler.ForgotPassword)
+				auth.POST("/reset-password", authHandler.ResetPassword)
+			}
+
+			me := v1.Group("/me", AuthMiddleware(jwtManager))
+			{
+				me.GET("", userHandler.GetProfile)
+				if passwordService != nil {
+					me.POST("/change-password", userHandler.ChangePassword)
+				}
+
+				if consentService != nil {
+					consentHandler := NewConsentHandler(consentService)
+					me.GET("/consents", consentHandler.GetConsents)
+					me.POST("/consents", consentHandler.GrantConsent)
+					me.DELETE("/consents/:type", consentHandler.RevokeConsent)
+				}
+
+				if gdprService != nil {
+					gdprHandler := NewGDPRHandler(gdprService, auditService, emailService)
+					me.GET("/data-export", gdprHandler.ExportData)
+					me.DELETE("/account", gdprHandler.DeleteAccount)
+				}
+
+				// Session management
+				if sessionService != nil {
+					sessionHandler := NewSessionHandler(sessionService)
+					me.GET("/sessions", sessionHandler.GetSessions)
+					me.DELETE("/sessions/:id", sessionHandler.RevokeSession)
+					me.DELETE("/sessions", sessionHandler.RevokeAllSessions)
+				}
+			}
+		}
+
+		// Legacy routes (without versioning) - for backward compatibility
 		auth := r.Group("/auth")
 		{
 			auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
 			auth.POST("/login", LoginRateLimiter(), authHandler.Login)
 			auth.POST("/refresh", RefreshRateLimiter(), authHandler.Refresh)
 			auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
-			auth.POST("/verify-email", authHandler.VerifyEmail)
-			auth.POST("/resend-verification", AuthMiddleware(jwtManager), authHandler.ResendVerification)
-			auth.POST("/forgot-password", authHandler.ForgotPassword)
-			auth.POST("/reset-password", authHandler.ResetPassword)
 		}
 
 		me := r.Group("/me", AuthMiddleware(jwtManager))
 		{
 			me.GET("", userHandler.GetProfile)
-			if passwordService != nil {
-				me.POST("/change-password", userHandler.ChangePassword)
-			}
-
-			if consentService != nil {
-				consentHandler := NewConsentHandler(consentService)
-				me.GET("/consents", consentHandler.GetConsents)
-				me.POST("/consents", consentHandler.GrantConsent)
-				me.DELETE("/consents/:type", consentHandler.RevokeConsent)
-			}
-
-			if gdprService != nil {
-				gdprHandler := NewGDPRHandler(gdprService, auditService, emailService)
-				me.GET("/data-export", gdprHandler.ExportData)
-				me.DELETE("/account", gdprHandler.DeleteAccount)
-			}
-
-			// Session management
-			if sessionService != nil {
-				sessionHandler := NewSessionHandler(sessionService)
-				me.GET("/sessions", sessionHandler.GetSessions)
-				me.DELETE("/sessions/:id", sessionHandler.RevokeSession)
-				me.DELETE("/sessions", sessionHandler.RevokeAllSessions)
-			}
 		}
 	}
 

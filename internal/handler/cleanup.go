@@ -4,8 +4,9 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/gin-gonic/gin"
+
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 )
 
 type CleanupService interface {

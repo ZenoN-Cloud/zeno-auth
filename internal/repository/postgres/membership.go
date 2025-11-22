@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,6 +19,9 @@ func NewMembershipRepo(db *DB) *MembershipRepo {
 }
 
 func (r *MembershipRepo) Create(ctx context.Context, membership *model.OrgMembership) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `
 		INSERT INTO org_memberships (user_id, org_id, role, is_active, created_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -30,7 +34,26 @@ func (r *MembershipRepo) Create(ctx context.Context, membership *model.OrgMember
 	).Scan(&membership.ID)
 }
 
+func (r *MembershipRepo) CreateTx(ctx context.Context, tx *sql.Tx, membership *model.OrgMembership) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	query := `
+		INSERT INTO org_memberships (user_id, org_id, role, is_active, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id`
+
+	membership.CreatedAt = time.Now()
+
+	return tx.QueryRowContext(
+		ctx, query, membership.UserID, membership.OrgID, membership.Role, membership.IsActive, membership.CreatedAt,
+	).Scan(&membership.ID)
+}
+
 func (r *MembershipRepo) GetByUserAndOrg(ctx context.Context, userID, orgID uuid.UUID) (*model.OrgMembership, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `SELECT id, user_id, org_id, role, is_active, created_at FROM org_memberships WHERE user_id = $1 AND org_id = $2`
 
 	membership := &model.OrgMembership{}
@@ -42,6 +65,9 @@ func (r *MembershipRepo) GetByUserAndOrg(ctx context.Context, userID, orgID uuid
 }
 
 func (r *MembershipRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.OrgMembership, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `SELECT id, user_id, org_id, role, is_active, created_at FROM org_memberships WHERE user_id = $1 AND is_active = true`
 
 	rows, err := r.db.pool.Query(ctx, query, userID)
@@ -66,6 +92,9 @@ func (r *MembershipRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([]*
 }
 
 func (r *MembershipRepo) Update(ctx context.Context, membership *model.OrgMembership) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	query := `UPDATE org_memberships SET role = $3, is_active = $4 WHERE user_id = $1 AND org_id = $2`
 
 	_, err := r.db.pool.Exec(ctx, query, membership.UserID, membership.OrgID, membership.Role, membership.IsActive)

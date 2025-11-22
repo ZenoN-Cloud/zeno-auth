@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ type RefreshTokenRepository interface {
 	GetByTokenHash(ctx context.Context, tokenHash string) (*model.RefreshToken, error)
 	GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*model.RefreshToken, error)
 	RevokeByUserID(ctx context.Context, userID uuid.UUID) error
+	RevokeByUserIDTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error
 	RevokeByID(ctx context.Context, id uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 }
@@ -32,6 +34,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*model.User, error)
 	GetByEmail(ctx context.Context, email string) (*model.User, error)
 	Update(ctx context.Context, user *model.User) error
+	UpdateTx(ctx context.Context, tx *sql.Tx, user *model.User) error
 }
 
 type OrganizationRepository interface {

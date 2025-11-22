@@ -76,16 +76,16 @@ func BuildContainer(cfg *config.Config) (*Container, error) {
 	container.AuthService = service.NewAuthService(
 		userRepo, orgRepo, membershipRepo, refreshRepo,
 		jwtManager, container.RefreshManager, container.PasswordManager,
-		container.EmailService, serviceConfig,
+		container.EmailService, serviceConfig, db,
 	)
 	container.UserService = service.NewUserService(userRepo, membershipRepo)
 	container.ConsentService = service.NewConsentService(consentRepo)
 	container.CleanupService = service.NewCleanupService(refreshRepo, auditRepo)
 	container.GDPRService = service.NewGDPRService(
-		userRepo, orgRepo, membershipRepo, refreshRepo, consentRepo, auditRepo,
+		userRepo, orgRepo, membershipRepo, refreshRepo, consentRepo, auditRepo, db,
 	)
 	container.PasswordService = service.NewPasswordService(
-		userRepo, refreshRepo, container.PasswordManager, container.AuditService, container.EmailService,
+		userRepo, refreshRepo, container.PasswordManager, container.AuditService, container.EmailService, db,
 	)
 	container.SessionService = service.NewSessionService(refreshRepo)
 

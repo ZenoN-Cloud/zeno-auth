@@ -84,7 +84,7 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email, 
 
 	// Audit log
 	if s.auditService != nil {
-		s.auditService.Log(ctx, &user.ID, "password_reset_requested", nil, ipAddress, userAgent)
+		_ = s.auditService.Log(ctx, &user.ID, "password_reset_requested", nil, ipAddress, userAgent)
 	}
 
 	// TODO: Send actual email via SendGrid/AWS SES
@@ -148,7 +148,7 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 
 	// Audit log
 	if s.auditService != nil {
-		s.auditService.Log(ctx, &user.ID, "password_reset_completed", nil, ipAddress, userAgent)
+		_ = s.auditService.Log(ctx, &user.ID, "password_reset_completed", nil, ipAddress, userAgent)
 	}
 
 	return nil

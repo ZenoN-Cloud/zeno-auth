@@ -95,6 +95,7 @@ curl http://localhost:8080/admin/compliance/status
 ### 🔐 Security & Compliance
 - **[docs/GDPR_COMPLIANCE.md](./docs/GDPR_COMPLIANCE.md)** - GDPR compliance documentation
 - **[docs/SECURITY_FEATURES.md](./docs/SECURITY_FEATURES.md)** - Security features overview
+- **[docs/PASSWORD_POLICY.md](./docs/PASSWORD_POLICY.md)** - ⭐ **Password policy and requirements**
 - **[SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md)** - Security & deployment checklist
 
 ### ⚙️ Configuration & Operations
@@ -276,4 +277,4 @@ For issues and questions, please open a GitHub issue.
 
 **Status:** 🟢 Production Ready  
 **Last Updated:** 2024  
-**Version:** 1.0.0
+**Version:** 1.1.0

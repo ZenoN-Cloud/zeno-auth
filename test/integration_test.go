@@ -27,7 +27,7 @@ func TestIntegration_HealthEndpoint(t *testing.T) {
 
 	resp, err := client.Get(baseURL + "/health")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -52,7 +52,7 @@ func TestIntegration_JWKSEndpoint(t *testing.T) {
 
 	resp, err := client.Get(baseURL + "/jwks")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -86,7 +86,7 @@ func TestIntegration_AuthFlow(t *testing.T) {
 		body, _ := json.Marshal(registerReq)
 		resp, err := client.Post(baseURL+"/auth/register", "application/json", bytes.NewBuffer(body))
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusCreated, resp.StatusCode)
 
@@ -105,7 +105,7 @@ func TestIntegration_AuthFlow(t *testing.T) {
 		body, _ := json.Marshal(loginReq)
 		resp, err := client.Post(baseURL+"/auth/login", "application/json", bytes.NewBuffer(body))
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -130,6 +130,6 @@ func isServerAvailable(t *testing.T, baseURL string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode == http.StatusOK
 }

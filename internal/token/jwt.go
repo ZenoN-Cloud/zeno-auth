@@ -10,8 +10,8 @@ import (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"sub"`
-	OrgID  uuid.UUID `json:"org"`
+	UserID uuid.UUID `json:"user_id"`
+	OrgID  uuid.UUID `json:"org_id"`
 	Roles  []string  `json:"roles"`
 	jwt.RegisteredClaims
 }
@@ -51,19 +51,26 @@ func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, role
 	default:
 	}
 
+	now := time.Now()
+	jti := uuid.New().String() // Unique token ID for revocation
+
 	claims := Claims{
 		UserID: userID,
 		OrgID:  orgID,
 		Roles:  roles,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(ttlSeconds) * time.Second)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Subject:   userID.String(),
+			ID:        jti,
+			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(ttlSeconds) * time.Second)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 			Issuer:    "zeno-auth",
-			Audience:  []string{"zenon-cloud"},
+			Audience:  []string{"zeno-frontend", "zeno-api"},
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "2024-01" // Key ID for key rotation
 	return token.SignedString(j.privateKey)
 }
 
@@ -75,14 +82,32 @@ func (j *JWTManager) Validate(ctx context.Context, tokenString string) (*Claims,
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		// Validate signing method
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
 		return j.publicKey, nil
-	})
+	}, jwt.WithValidMethods([]string{"RS256"}))
 
 	if err != nil {
 		return nil, err
 	}
 
 	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
+		// Validate issuer and audience
+		if claims.Issuer != "zeno-auth" {
+			return nil, jwt.ErrTokenInvalidIssuer
+		}
+		validAudience := false
+		for _, aud := range claims.Audience {
+			if aud == "zeno-frontend" || aud == "zeno-api" {
+				validAudience = true
+				break
+			}
+		}
+		if !validAudience {
+			return nil, jwt.ErrTokenInvalidAudience
+		}
 		return claims, nil
 	}
 

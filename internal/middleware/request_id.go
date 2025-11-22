@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 type contextKey string
@@ -20,6 +21,7 @@ func RequestID() gin.HandlerFunc {
 		}
 
 		c.Header("X-Request-ID", requestID)
+		c.Set("request_id", requestID)
 		ctx := context.WithValue(c.Request.Context(), RequestIDKey, requestID)
 		c.Request = c.Request.WithContext(ctx)
 

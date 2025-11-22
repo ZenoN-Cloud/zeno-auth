@@ -1,18 +1,42 @@
+# Git
 .git
 .gitignore
 .github
+
+# Documentation
 README.md
 LICENSE
-.dockerignore
-.env*
+*.md
 docs/
 deploy/
-*.md
-*.log
+
+# Environment
+.env*
+!.env.example
+
+# Build artifacts
+auth
+cleanup
 main
 zeno-auth
 cloud-sql-proxy
-coverage.out
+*.out
+coverage.*
+
+# Logs
+*.log
+logs/
+
+# IDE
 .DS_Store
 .vscode
 .idea
+*.swp
+*~
+
+# Tests
+test/
+
+# Scripts (not needed in container)
+scripts/*
+!scripts/entrypoint.sh

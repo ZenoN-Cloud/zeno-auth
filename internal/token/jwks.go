@@ -30,7 +30,7 @@ func (j *JWTManager) GetJWKS(ctx context.Context) (*JWKS, error) {
 			{
 				Kty: "RSA",
 				Use: "sig",
-				Kid: "zeno-auth-key",
+				Kid: "2024-01", // Match the kid in JWT header
 				N:   j.encodeBase64BigInt(j.publicKey.N),
 				E:   j.encodeBase64BigInt(big.NewInt(int64(j.publicKey.E))),
 			},

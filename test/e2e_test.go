@@ -28,7 +28,7 @@ func TestE2E_AuthFlow(t *testing.T) {
 	t.Run("Health Check", func(t *testing.T) {
 		resp, err := client.Get(baseURL + "/health")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -42,7 +42,7 @@ func TestE2E_AuthFlow(t *testing.T) {
 	t.Run("JWKS Endpoint", func(t *testing.T) {
 		resp, err := client.Get(baseURL + "/jwks")
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -63,7 +63,7 @@ func TestE2E_AuthFlow(t *testing.T) {
 		body, _ := json.Marshal(registerReq)
 		resp, err := client.Post(baseURL+"/auth/register", "application/json", bytes.NewBuffer(body))
 		require.NoError(t, err)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Registration might fail if user exists, that's OK for E2E
 		assert.Contains(t, []int{http.StatusCreated, http.StatusConflict}, resp.StatusCode)
