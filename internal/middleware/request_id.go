@@ -1,0 +1,41 @@
+package middleware
+
+import (
+	"context"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+)
+
+type contextKey string
+
+const RequestIDKey contextKey = "request_id"
+
+func RequestID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+
+		c.Header("X-Request-ID", requestID)
+		ctx := context.WithValue(c.Request.Context(), RequestIDKey, requestID)
+		c.Request = c.Request.WithContext(ctx)
+
+		log.Ctx(ctx).UpdateContext(
+			func(zc zerolog.Context) zerolog.Context {
+				return zc.Str("request_id", requestID)
+			},
+		)
+
+		c.Next()
+	}
+}
+
+func GetRequestID(ctx context.Context) string {
+	if reqID, ok := ctx.Value(RequestIDKey).(string); ok {
+		return reqID
+	}
+	return ""
+}

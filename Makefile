@@ -99,16 +99,55 @@ docker-build:
 
 # Run migrations up
 migrate-up:
+	@echo "⬆️  Running migrations up..."
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "❌ DATABASE_URL not set"; \
+		exit 1; \
+	fi
 	migrate -path migrations -database "$(DATABASE_URL)" up
+	@echo "✅ Migrations applied!"
 
 # Run migrations down
 migrate-down:
+	@echo "⬇️  Rolling back migrations..."
+	@if [ -z "$(DATABASE_URL)" ]; then \
+		echo "❌ DATABASE_URL not set"; \
+		exit 1; \
+	fi
 	migrate -path migrations -database "$(DATABASE_URL)" down
+	@echo "✅ Migrations rolled back!"
+
+# Reset migrations (down + up)
+migrate-reset:
+	@echo "🔄 Resetting database..."
+	@$(MAKE) migrate-down
+	@$(MAKE) migrate-up
+	@echo "✅ Database reset complete!"
+
+# Create new migration
+migrate-create:
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Usage: make migrate-create NAME=migration_name"; \
+		exit 1; \
+	fi
+	@echo "🆕 Creating migration: $(NAME)"
+	migrate create -ext sql -dir migrations -seq $(NAME)
+	@echo "✅ Migration files created!"
 
 # Install dependencies
 deps:
+	@echo "📦 Installing dependencies..."
 	go mod tidy
 	go mod download
+	@echo "✅ Dependencies installed!"
+
+# Install dev tools
+install-tools:
+	@echo "🔧 Installing development tools..."
+	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install mvdan.cc/gofumpt@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@latest
+	@echo "✅ Tools installed!"
 
 # Generate JWT key pair for development
 generate-keys:
@@ -134,9 +173,34 @@ lint:
 
 # Format code
 fmt:
+	@echo "🎨 Formatting code..."
 	go fmt ./...
-	goimports -w .
+	@echo "✅ Code formatted!"
+
+# Format with gofumpt (if installed)
+fmt-strict:
+	@echo "🎨 Formatting code (strict)..."
+	@command -v gofumpt >/dev/null 2>&1 && gofumpt -l -w . || go fmt ./...
+	@echo "✅ Code formatted!"
 
 # Vet code
 vet:
+	@echo "🔍 Vetting code..."
 	go vet ./...
+	@echo "✅ Vet passed!"
+
+# Run staticcheck (if installed)
+staticcheck:
+	@echo "🔍 Running staticcheck..."
+	@command -v staticcheck >/dev/null 2>&1 && staticcheck ./... || echo "⚠️  staticcheck not installed"
+
+# Test coverage
+cover:
+	@echo "📊 Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "✅ Coverage report: coverage.html"
+
+# Run all checks
+check: fmt vet lint test
+	@echo "✅ All checks passed!"

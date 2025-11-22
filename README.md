@@ -77,25 +77,31 @@ curl http://localhost:8080/admin/compliance/status
 
 ## 📚 Documentation
 
-### Getting Started
+### 🚀 Quick Start
 - **[QUICKSTART.md](./QUICKSTART.md)** - Quick start guide
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - ⭐ **Quick reference for developers**
 - **[FULL_STACK_LOCAL.md](./FULL_STACK_LOCAL.md)** - Full stack local setup
 - **[LOCAL_DEV.md](./LOCAL_DEV.md)** - Local development guide
 
-### Architecture & Implementation
-- **[docs/architecture.md](./docs/architecture.md)** - Service architecture
-- **[docs/IMPLEMENTATION_STATUS.md](./docs/IMPLEMENTATION_STATUS.md)** - ⭐ **Implementation checklist**
-- **[docs/implementation-plan.md](./docs/implementation-plan.md)** - Original implementation plan
+### 🏗️ Architecture & Implementation
 
-### Security & Compliance
+- **[REFACTORING_COMPLETE.md](./REFACTORING_COMPLETE.md)** - ⭐ **Latest refactoring (v1.1.0)**
+- **[ARCHITECTURE_IMPROVEMENTS.md](./ARCHITECTURE_IMPROVEMENTS.md)** - Architecture improvements checklist
+- **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)** - Detailed implementation summary
+- **[NEXT_STEPS.md](./NEXT_STEPS.md)** - ⭐ **Next steps and priorities**
+- **[docs/architecture.md](./docs/architecture.md)** - Service architecture
+- **[docs/IMPLEMENTATION_STATUS.md](./docs/IMPLEMENTATION_STATUS.md)** - Implementation checklist
+
+### 🔐 Security & Compliance
 - **[docs/GDPR_COMPLIANCE.md](./docs/GDPR_COMPLIANCE.md)** - GDPR compliance documentation
 - **[docs/SECURITY_FEATURES.md](./docs/SECURITY_FEATURES.md)** - Security features overview
-- **[docs/security-implementation-plan.md](./docs/security-implementation-plan.md)** - Security implementation plan
+- **[SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md)** - Security & deployment checklist
 
-### Operations
+### ⚙️ Configuration & Operations
+
+- **[docs/ENV_VARIABLES.md](./docs/ENV_VARIABLES.md)** - ⭐ **Environment variables documentation**
 - **[docs/CLEANUP_CRON.md](./docs/CLEANUP_CRON.md)** - Data retention & cleanup
 - **[deploy/README.md](./deploy/README.md)** - Production deployment
-- **[SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md)** - ⭐ **Security & deployment checklist**
 - **[api/openapi.yaml](./api/openapi.yaml)** - OpenAPI specification
 
 ## 🏗️ Architecture

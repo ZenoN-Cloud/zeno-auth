@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-
 	"github.com/google/uuid"
 
+	"github.com/ZenoN-Cloud/zeno-auth/internal/middleware"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
@@ -36,6 +36,7 @@ func SetupRouter(
 	metricsCollector MetricsCollector,
 ) *gin.Engine {
 	r := gin.New()
+	r.Use(middleware.RequestID())
 	r.Use(LoggingMiddleware())
 	r.Use(SecurityHeadersMiddleware())
 
