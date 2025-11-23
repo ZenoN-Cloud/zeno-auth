@@ -19,9 +19,7 @@ func (c *Config) Validate() error {
 	if c.JWT.PrivateKey == "" && c.Env != "development" {
 		errs = append(errs, "JWT_PRIVATE_KEY is required in production")
 	}
-	if c.JWT.PublicKey == "" && c.Env != "development" {
-		errs = append(errs, "JWT_PUBLIC_KEY is required in production")
-	}
+	// JWT_PUBLIC_KEY is optional - we have embedded public key in internal/token/jwt_public.pem
 	if c.JWT.AccessTokenTTL <= 0 {
 		errs = append(errs, "JWT_ACCESS_TOKEN_TTL must be > 0")
 	}

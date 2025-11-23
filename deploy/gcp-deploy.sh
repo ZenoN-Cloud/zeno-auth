@@ -137,7 +137,7 @@ if gcloud run services describe "$SERVICE_NAME" --region="$REGION" &> /dev/null;
         --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
         --set-secrets=DATABASE_URL=zeno-auth-database-url:latest \
         --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
-        --set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080 \
+        --set-env-vars=ENV=production,APP_NAME=zeno-auth \
         --port=8080 \
         --memory=512Mi \
         --cpu=1 \
@@ -156,7 +156,7 @@ else
         --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
         --set-secrets=DATABASE_URL=zeno-auth-database-url:latest \
         --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
-        --set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080 \
+        --set-env-vars=ENV=production,APP_NAME=zeno-auth \
         --allow-unauthenticated \
         --port=8080 \
         --memory=512Mi \
