@@ -30,11 +30,12 @@ func New() (*App, error) {
 	}
 
 	// Set Gin mode based on environment
-	if cfg.Env == "prod" || cfg.Env == "production" {
+	switch cfg.Env {
+	case "prod", "production":
 		gin.SetMode(gin.ReleaseMode)
-	} else if cfg.Env == "test" {
+	case "test":
 		gin.SetMode(gin.TestMode)
-	} else {
+	default:
 		gin.SetMode(gin.DebugMode)
 	}
 
