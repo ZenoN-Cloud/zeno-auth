@@ -2,115 +2,66 @@
 
 Core authentication and identity service for the **ZenoN-Cloud** platform.
 
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen)](docs/IMPLEMENTATION_STATUS.md)
+[![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen)](docs/architecture.md)
 [![GDPR Compliant](https://img.shields.io/badge/GDPR-compliant-blue)](docs/GDPR_COMPLIANCE.md)
-[![Security Score](https://img.shields.io/badge/security-86%25-green)](docs/IMPLEMENTATION_STATUS.md)
 
 ## 🎯 Features
 
-### Core Authentication
-- ✅ User registration & login
-- ✅ JWT access & refresh tokens
-- ✅ Password reset flow
-- ✅ Email verification
-- ✅ Session management
-- ✅ Organization management
+- ✅ User registration & JWT authentication
+- ✅ Password reset & email verification
+- ✅ Session & organization management
+- ✅ Argon2id hashing & rate limiting
+- ✅ GDPR compliance (Art. 15, 17, 20)
+- ✅ Prometheus metrics & health checks
 
-### Security
-- ✅ Argon2id password hashing
-- ✅ Rate limiting (brute-force protection)
-- ✅ Session fingerprinting
-- ✅ Account lockout (5 failed attempts)
-- ✅ Input validation & sanitization
-- ✅ Security headers (HSTS, CSP, etc.)
-- ✅ CORS whitelist
-
-### GDPR Compliance
-- ✅ Right to Access (Art. 15)
-- ✅ Right to Erasure (Art. 17)
-- ✅ Right to Data Portability (Art. 20)
-- ✅ Consent Management (Art. 7)
-- ✅ Data Retention Policy (Art. 5.1.e)
-- ✅ Audit Logging (Art. 30)
-- ✅ Privacy by Design (Art. 25)
-
-### Production Features
-- ✅ Prometheus metrics
-- ✅ Enhanced health checks (liveness/readiness)
-- ✅ Structured logging (Zerolog)
-- ✅ OpenAPI documentation
-- ✅ Admin panel with compliance reports
-- ✅ Automated cleanup jobs
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- Go 1.25+ (for local development)
-
-### Start All Services
+### Local Development
 
 ```bash
+# Start services
 docker-compose up -d
+
+# Run tests
+make test
+
+# Check health
+curl http://localhost:8080/health
 ```
 
 **Access:**
-- 🎨 **Frontend:** http://localhost:5173
-- 🔌 **API:** http://localhost:8080
-- 📊 **Admin Panel:** http://localhost:5173 (click "Admin" button)
-- 🗄️ **pgAdmin:** http://localhost:5050
 
-### Test Endpoints
+- API: http://localhost:8080
+- pgAdmin: http://localhost:5050
+
+### GCP Deployment
 
 ```bash
-# Health check
-curl http://localhost:8080/health
+# Setup infrastructure (one-time)
+make gcp-setup
 
-# Readiness probe
-curl http://localhost:8080/health/ready
+# Deploy application
+make gcp-deploy
 
-# Metrics
-curl http://localhost:8080/metrics
-
-# Compliance status
-curl http://localhost:8080/admin/compliance/status
+# Check status
+make gcp-status-check
 ```
 
 ## 📚 Documentation
 
-### 🚀 Quick Start
-- **[QUICKSTART.md](./QUICKSTART.md)** - Quick start guide
-- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - ⭐ **Quick reference for developers**
-- **[FULL_STACK_LOCAL.md](./FULL_STACK_LOCAL.md)** - Full stack local setup
-- **[LOCAL_DEV.md](./LOCAL_DEV.md)** - Local development guide
-
-### 🏗️ Architecture & Implementation
-
-- **[REFACTORING_COMPLETE.md](./REFACTORING_COMPLETE.md)** - ⭐ **Latest refactoring (v1.1.0)**
-- **[ARCHITECTURE_IMPROVEMENTS.md](./ARCHITECTURE_IMPROVEMENTS.md)** - Architecture improvements checklist
-- **[IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md)** - Detailed implementation summary
-- **[NEXT_STEPS.md](./NEXT_STEPS.md)** - ⭐ **Next steps and priorities**
-- **[docs/architecture.md](./docs/architecture.md)** - Service architecture
-- **[docs/IMPLEMENTATION_STATUS.md](./docs/IMPLEMENTATION_STATUS.md)** - Implementation checklist
-
-### 🔐 Security & Compliance
-- **[docs/GDPR_COMPLIANCE.md](./docs/GDPR_COMPLIANCE.md)** - GDPR compliance documentation
-- **[docs/SECURITY_FEATURES.md](./docs/SECURITY_FEATURES.md)** - Security features overview
-- **[docs/PASSWORD_POLICY.md](./docs/PASSWORD_POLICY.md)** - ⭐ **Password policy and requirements**
-- **[SECURITY_CHECKLIST.md](./SECURITY_CHECKLIST.md)** - Security & deployment checklist
-
-### ⚙️ Configuration & Operations
-
-- **[docs/ENV_VARIABLES.md](./docs/ENV_VARIABLES.md)** - ⭐ **Environment variables documentation**
-- **[docs/CLEANUP_CRON.md](./docs/CLEANUP_CRON.md)** - Data retention & cleanup
-- **[deploy/README.md](./deploy/README.md)** - Production deployment
-- **[api/openapi.yaml](./api/openapi.yaml)** - OpenAPI specification
+- **[Architecture](docs/architecture.md)** - System design & components
+- **[GDPR Compliance](docs/GDPR_COMPLIANCE.md)** - Privacy & data protection
+- **[Environment Variables](docs/ENV_VARIABLES.md)** - Configuration reference
+- **[Password Policy](docs/PASSWORD_POLICY.md)** - Security requirements
+- **[Deployment Guide](deploy/README.md)** - Production deployment
+- **[API Specification](api/openapi.yaml)** - OpenAPI 3.0 spec
+- **[Changelog](CHANGELOG.md)** - Version history
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────┐
-│   Frontend  │ (React + TypeScript)
-│  Port 5173  │
+│   Client    │
 └──────┬──────┘
        │
        ▼
@@ -126,155 +77,166 @@ curl http://localhost:8080/admin/compliance/status
 └─────────────┘
 ```
 
-### Tech Stack
+**Stack:**
 
-**Backend:**
-- Go 1.25
-- Gin (HTTP framework)
+- Go 1.25 + Gin
 - PostgreSQL 17
-- JWT (golang-jwt/jwt)
-- Argon2id (password hashing)
-- Zerolog (structured logging)
-
-**Frontend:**
-- React 18
-- TypeScript
-- Vite
-- Yarn
-
-## 📊 Status
-
-**Implementation Progress:** 25/25 features (100%)  
-**GDPR Compliance:** 10/10 (100%)  
-**Security Score:** 13/14 (93%)  
-**Production Ready:** ✅ Yes
-
-See [IMPLEMENTATION_STATUS.md](./docs/IMPLEMENTATION_STATUS.md) for detailed breakdown.
+- JWT (RS256)
+- Argon2id
+- Zerolog
 
 ## 🔧 Development
 
-### Run Tests
-
 ```bash
-go test ./... -v
-```
+# Format & test
+make check
 
-### Format Code
+# Build
+make build
 
-```bash
-go fmt ./...
-```
+# Coverage
+make cover
 
-### Lint Code
-
-```bash
-go vet ./...
-```
-
-### Build
-
-```bash
-go build -o auth ./cmd/auth
-```
-
-### Run Cleanup Job
-
-```bash
-./scripts/run-cleanup.sh
+# Integration tests
+make local-up
+make integration
 ```
 
 ## 🚢 Deployment
-
-See [deploy/README.md](./deploy/README.md) for production deployment instructions.
 
 ### Environment Variables
 
 ```env
 DATABASE_URL=postgres://user:pass@host:5432/dbname
-JWT_PRIVATE_KEY=<base64-encoded-private-key>
-JWT_PUBLIC_KEY=<base64-encoded-public-key>
-CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+JWT_PRIVATE_KEY=<base64-encoded-key>
+CORS_ALLOWED_ORIGINS=https://app.example.com
 ENV=production
+PORT=8080
 ```
 
-## 📈 Monitoring
-
-### Metrics Endpoint
+### GCP Cloud Run
 
 ```bash
+# Check infrastructure
+make gcp-status-check
+
+# Deploy
+make gcp-deploy
+
+# View logs
+make gcp-logs
+
+# Test
+make gcp-test
+```
+
+## 📊 Monitoring
+
+```bash
+# Metrics
 curl http://localhost:8080/metrics
-```
 
-**Available Metrics:**
-- `auth_registrations_total`
-- `auth_logins_total`
-- `auth_login_failures_total`
-- `auth_token_refreshes_total`
-- `auth_active_sessions`
-- `auth_request_duration_seconds` (histogram)
-
-### Health Checks
-
-```bash
-# Basic health
+# Health checks
 curl http://localhost:8080/health
-
-# Readiness (includes DB check)
 curl http://localhost:8080/health/ready
-
-# Liveness (system metrics)
 curl http://localhost:8080/health/live
 ```
 
 ## 🔐 Security
 
-### Implemented
 - ✅ Argon2id password hashing
-- ✅ Rate limiting (5 login attempts / 15 min)
+- ✅ Rate limiting (5 attempts / 15 min)
+- ✅ Account lockout after 5 failed logins
 - ✅ Session fingerprinting
-- ✅ Account lockout after 5 failed attempts
+- ✅ Security headers (HSTS, CSP, etc.)
 - ✅ Input validation & sanitization
-- ✅ Security headers (HSTS, CSP, X-Frame-Options, etc.)
-- ✅ CORS whitelist
 - ✅ Audit logging
-- ✅ SQL injection prevention (parameterized queries)
-- ✅ XSS prevention
 
-### Production Hardening ✅
-- ✅ Centralized error handling
-- ✅ Non-root Docker user
-- ✅ Fail-fast migrations
-- ✅ Stdout-only logging in production
-- ✅ Protected /metrics and /debug endpoints
-- ✅ golangci-lint in CI
-- ✅ Security test suite
+## 📝 API Endpoints
 
-### Recent Improvements (2024)
+### Authentication
 
-- ✅ **Fixed:** Account lockout now works correctly
-- ✅ **Improved:** Session fingerprinting uses full IP address
-- ✅ **Added:** Email notifications for critical events (4 types)
-- ✅ **Enhanced:** GDPR compliance to 100%
+- `POST /v1/auth/register` - Register user
+- `POST /v1/auth/login` - Login
+- `POST /v1/auth/refresh` - Refresh token
+- `POST /v1/auth/logout` - Logout
+- `POST /v1/auth/forgot-password` - Request reset
+- `POST /v1/auth/reset-password` - Reset password
 
-### TODO
-- ⏳ MFA/2FA (TOTP)
-- ⏳ Email provider integration (SendGrid/AWS SES)
-- ⏳ Encryption at rest
+### User
 
-## 📝 License
+- `GET /v1/me` - Get profile
+- `POST /v1/me/change-password` - Change password
+- `GET /v1/me/sessions` - List sessions
+- `DELETE /v1/me/sessions/:id` - Revoke session
 
-MIT License - see [LICENSE](./LICENSE) for details.
+### GDPR
+
+- `GET /v1/me/data-export` - Export data (Art. 15)
+- `DELETE /v1/me/account` - Delete account (Art. 17)
+- `GET /v1/me/consents` - List consents
+- `POST /v1/me/consents` - Grant consent
+- `DELETE /v1/me/consents/:type` - Revoke consent
+
+### Health
+
+- `GET /health` - Basic health
+- `GET /health/ready` - Readiness probe
+- `GET /health/live` - Liveness probe
+- `GET /metrics` - Prometheus metrics
+- `GET /.well-known/jwks.json` - JWKS
+
+See [OpenAPI spec](api/openapi.yaml) for full documentation.
+
+## 🧪 Testing
+
+```bash
+# Unit tests
+make test
+
+# With coverage
+make cover
+
+# Integration tests
+make integration
+
+# E2E tests
+E2E_BASE_URL=http://localhost:8080 make e2e
+```
+
+## 📦 Project Structure
+
+```
+zeno-auth/
+├── cmd/
+│   ├── auth/          # Main service
+│   └── cleanup/       # Cleanup job
+├── internal/
+│   ├── handler/       # HTTP handlers
+│   ├── service/       # Business logic
+│   ├── repository/    # Data access
+│   ├── model/         # Domain models
+│   └── token/         # JWT & crypto
+├── migrations/        # SQL migrations
+├── deploy/            # Deployment scripts
+├── docs/              # Documentation
+└── test/              # Integration tests
+```
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read the implementation status and security guidelines before contributing.
+1. Fork the repository
+2. Create feature branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing`)
+5. Open Pull Request
 
-## 📞 Support
+## 📄 License
 
-For issues and questions, please open a GitHub issue.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
 **Status:** 🟢 Production Ready  
-**Last Updated:** 2024  
-**Version:** 1.1.0
+**Version:** 1.1.0  
+**Deployed:** https://zeno-auth-dev-umu7aajgeq-ey.a.run.app

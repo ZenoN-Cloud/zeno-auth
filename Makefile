@@ -168,6 +168,12 @@ release: ## Create a release build
 	@CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o cleanup ./cmd/cleanup
 
 # GCP Deployment
+gcp-setup: ## Setup GCP infrastructure (one-time)
+	@./deploy/gcp-setup-complete.sh
+
+gcp-status-check: ## Check GCP infrastructure status
+	@./deploy/gcp-status-check.sh
+
 gcp-deploy: ## Deploy to GCP Cloud Run
 	@./deploy/gcp-deploy.sh
 
@@ -179,3 +185,13 @@ gcp-status: ## Check GCP service status
 
 gcp-health: ## Check GCP service health
 	@curl -s $$(gcloud run services describe zeno-auth-dev --region=europe-west3 --format="value(status.url)")/health | jq .
+
+gcp-test: ## Test GCP deployed service
+	@echo "Testing health endpoint..."
+	@curl -s $$(gcloud run services describe zeno-auth-dev --region=europe-west3 --format="value(status.url)")/health | jq .
+	@echo ""
+	@echo "Testing readiness endpoint..."
+	@curl -s $$(gcloud run services describe zeno-auth-dev --region=europe-west3 --format="value(status.url)")/health/ready | jq .
+	@echo ""
+	@echo "Testing JWKS endpoint..."
+	@curl -s $$(gcloud run services describe zeno-auth-dev --region=europe-west3 --format="value(status.url)")/jwks | jq '.keys[0].kid'
