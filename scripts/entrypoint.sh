@@ -1,26 +1,58 @@
 #!/bin/sh
 set -e
 
-echo "Starting zeno-auth..."
-echo "ENV: $ENV"
-echo "PORT: $PORT"
-echo "APP_NAME: $APP_NAME"
-echo "DATABASE_URL set: $([ -n "$DATABASE_URL" ] && echo 'yes' || echo 'no')"
-echo "JWT_PRIVATE_KEY set: $([ -n "$JWT_PRIVATE_KEY" ] && echo 'yes' || echo 'no')"
+echo "========================================"
+echo "  Starting zeno-auth"
+echo "========================================"
+echo "ENV:               ${ENV}"
+echo "PORT:              ${PORT}"
+echo "APP_NAME:          ${APP_NAME}"
+echo "DATABASE_URL:      $([ -n "${DATABASE_URL}" ] && echo 'set' || echo 'NOT set')"
+echo "JWT_PRIVATE_KEY:   $([ -n "${JWT_PRIVATE_KEY}" ] && echo 'set' || echo 'NOT set')"
+echo "----------------------------------------"
 
-# Run migrations if DATABASE_URL is set
-if [ -n "$DATABASE_URL" ]; then
-    echo "Running database migrations..."
-    if ! migrate -path ./migrations -database "$DATABASE_URL" up; then
-        echo "ERROR: Migration failed! Exiting..."
-        exit 1
+# ---- WAIT FOR DATABASE -------------------------------------------------------
+if [ -n "${DATABASE_URL}" ]; then
+  echo "Waiting for database to become available..."
+  RETRIES=10
+  SLEEP=2
+
+  for i in $(seq 1 $RETRIES); do
+    if migrate -path ./migrations -database "${DATABASE_URL}" version >/dev/null 2>&1; then
+      echo "Database is reachable!"
+      break
     fi
-    echo "Migrations completed successfully"
+
+    echo "Attempt ${i}/${RETRIES}... database not ready yet"
+    sleep $SLEEP
+  done
+
+  # Check after final attempt
+  if ! migrate -path ./migrations -database "${DATABASE_URL}" version >/dev/null 2>&1; then
+    echo "ERROR: Database is still unreachable after ${RETRIES} attempts"
+    exit 1
+  fi
 else
-    echo "WARNING: DATABASE_URL not set, skipping migrations"
+  echo "WARNING: DATABASE_URL not set — skipping DB wait"
 fi
 
-# Start the application
-echo "Starting application..."
-echo "Executing: ./zeno-auth"
+# ---- RUN MIGRATIONS ----------------------------------------------------------
+if [ -n "${DATABASE_URL}" ]; then
+  echo "Running migrations..."
+  if migrate -path ./migrations -database "${DATABASE_URL}" up; then
+    echo "Migrations completed successfully"
+  else
+    echo "ERROR: Migration failed!"
+    exit 1
+  fi
+else
+  echo "Skipping migrations (DATABASE_URL not provided)"
+fi
+
+# ---- START APPLICATION --------------------------------------------------------
+echo "----------------------------------------"
+echo "Starting application: ./zeno-auth"
+echo "----------------------------------------"
+
+# exec → replace shell with app (correct for Cloud Run)
 exec ./zeno-auth

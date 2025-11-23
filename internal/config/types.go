@@ -32,12 +32,12 @@ type Log struct {
 	File   string `json:"file"`
 }
 
-// GetCORSOrigins returns the list of allowed CORS origins
+// GetCORSOrigins returns the list of allowed CORS origins.
 func (c *Config) GetCORSOrigins() []string {
 	return c.Server.CORSAllowedOrigins
 }
 
-// GetEnv returns the environment name
+// GetEnv returns the environment name.
 func (c *Config) GetEnv() string {
 	return c.Env
 }

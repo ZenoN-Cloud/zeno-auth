@@ -20,7 +20,7 @@ func NewHealthChecker(db *pgxpool.Pool) *HealthChecker {
 	return &HealthChecker{db: db}
 }
 
-// Health - простая проверка (всегда возвращает 200)
+// Health - basic public health check (always 200)
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "healthy",
@@ -28,38 +28,42 @@ func Health(c *gin.Context) {
 	})
 }
 
-// HealthReady - readiness probe (проверяет зависимости)
+// HealthReady - readiness probe (checks external dependencies)
 func (h *HealthChecker) HealthReady(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 	defer cancel()
 
-	response := gin.H{
-		"status":    "ready",
-		"service":   "zeno-auth",
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
-		"checks":    gin.H{},
-	}
-
+	checks := gin.H{}
 	allHealthy := true
-	checks := response["checks"].(gin.H)
 
 	// Database check
-	if h.db != nil {
-		if err := h.db.Ping(ctx); err != nil {
+	if h.db == nil {
+		checks["database"] = gin.H{"status": "not_configured"}
+		allHealthy = false
+	} else {
+		start := time.Now()
+		err := h.db.Ping(ctx)
+		latency := time.Since(start)
+
+		if err != nil {
 			checks["database"] = gin.H{
-				"status": "unhealthy",
-				"error":  err.Error(),
+				"status":  "fail",
+				"error":   err.Error(),
+				"latency": latency.Milliseconds(),
 			}
 			allHealthy = false
 		} else {
 			checks["database"] = gin.H{
-				"status": "healthy",
+				"status":  "ok",
+				"latency": latency.Milliseconds(),
 			}
 		}
-	} else {
-		checks["database"] = gin.H{
-			"status": "not_configured",
-		}
+	}
+
+	response := gin.H{
+		"service":   "zeno-auth",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"checks":    checks,
 	}
 
 	if !allHealthy {
@@ -68,10 +72,11 @@ func (h *HealthChecker) HealthReady(c *gin.Context) {
 		return
 	}
 
+	response["status"] = "ready"
 	c.JSON(http.StatusOK, response)
 }
 
-// HealthLive - liveness probe (проверяет что процесс жив)
+// HealthLive - liveness probe (checks process health)
 func (h *HealthChecker) HealthLive(c *gin.Context) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -85,9 +90,9 @@ func (h *HealthChecker) HealthLive(c *gin.Context) {
 		"uptime":    uptime.String(),
 		"system": gin.H{
 			"goroutines":   runtime.NumGoroutine(),
-			"memory_alloc": m.Alloc / 1024 / 1024,      // MB
-			"memory_total": m.TotalAlloc / 1024 / 1024, // MB
-			"memory_sys":   m.Sys / 1024 / 1024,        // MB
+			"memory_alloc": m.Alloc / 1024 / 1024,
+			"memory_total": m.TotalAlloc / 1024 / 1024,
+			"memory_sys":   m.Sys / 1024 / 1024,
 			"gc_runs":      m.NumGC,
 			"num_cpu":      runtime.NumCPU(),
 		},

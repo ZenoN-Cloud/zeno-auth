@@ -10,6 +10,9 @@ import (
 )
 
 func SetupLogger(cfg *Config) error {
+	env := cfg.Env
+
+	// Parse log level
 	level, err := zerolog.ParseLevel(cfg.Log.Level)
 	if err != nil {
 		level = zerolog.InfoLevel
@@ -18,27 +21,42 @@ func SetupLogger(cfg *Config) error {
 
 	var writers []io.Writer
 
-	if cfg.Log.Format == "console" {
-		writers = append(writers, zerolog.ConsoleWriter{Out: os.Stdout})
+	// Console vs JSON
+	if cfg.Log.Format == "console" && env != "production" && env != "prod" {
+		writers = append(
+			writers, zerolog.ConsoleWriter{
+				Out:        os.Stdout,
+				TimeFormat: "15:04:05",
+			},
+		)
 	} else {
 		writers = append(writers, os.Stdout)
 	}
 
-	// Only write to file in dev mode
-	if cfg.Env != "production" && cfg.Env != "prod" && cfg.Log.File != "" {
-		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0755); err != nil {
+	// File logging (only non-production)
+	if env != "production" && env != "prod" && cfg.Log.File != "" {
+		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0o755); err != nil {
 			return err
 		}
 
-		file, err := os.OpenFile(cfg.Log.File, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+		file, err := os.OpenFile(cfg.Log.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o666)
 		if err != nil {
 			return err
 		}
+
 		writers = append(writers, file)
 	}
 
+	// Multi writer
 	multi := io.MultiWriter(writers...)
-	log.Logger = zerolog.New(multi).With().Timestamp().Logger()
+
+	// Global logger
+	log.Logger = zerolog.New(multi).
+		With().
+		Timestamp().
+		Str("app", cfg.AppName).
+		Str("env", cfg.Env).
+		Logger()
 
 	return nil
 }

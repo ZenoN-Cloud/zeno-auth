@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -46,32 +47,37 @@ func Load() (*Config, error) {
 }
 
 func validate(cfg *Config) error {
-	// Skip JWT validation for cleanup jobs
+	// Cleanup jobs can skip DB + JWT validation
 	skipJWT := os.Getenv("SKIP_JWT_VALIDATION") == "1"
+
 	if !skipJWT && cfg.JWT.PrivateKey == "" {
 		return fmt.Errorf("JWT_PRIVATE_KEY is required")
 	}
 
-	// Validate port
 	if port, err := strconv.Atoi(cfg.Server.Port); err != nil || port <= 0 {
 		return fmt.Errorf("PORT must be a valid positive integer")
 	}
 
-	// Validate database URL (skip for cleanup jobs)
 	if !skipJWT && cfg.Database.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required")
 	}
 
-	// Validate token TTLs
 	if cfg.JWT.AccessTokenTTL <= 0 {
 		return fmt.Errorf("ACCESS_TOKEN_TTL must be positive")
 	}
+
 	if cfg.JWT.RefreshTokenTTL <= 0 {
 		return fmt.Errorf("REFRESH_TOKEN_TTL must be positive")
 	}
 
-	// Validate environment
-	validEnvs := map[string]bool{"dev": true, "development": true, "staging": true, "prod": true, "production": true, "test": true}
+	validEnvs := map[string]bool{
+		"dev":         true,
+		"development": true,
+		"staging":     true,
+		"prod":        true,
+		"production":  true,
+		"test":        true,
+	}
 	if !validEnvs[cfg.Env] {
 		return fmt.Errorf("ENV must be one of: dev, development, staging, prod, production, test")
 	}
@@ -97,48 +103,15 @@ func getEnvInt(key string, defaultValue int) int {
 
 func getEnvSlice(key string, defaultValue []string) []string {
 	if value := os.Getenv(key); value != "" {
+		parts := strings.Split(value, ",")
 		var result []string
-		for _, v := range splitAndTrim(value, ",") {
-			if v != "" {
-				result = append(result, v)
+		for _, part := range parts {
+			trimmed := strings.TrimSpace(part)
+			if trimmed != "" {
+				result = append(result, trimmed)
 			}
 		}
 		return result
 	}
 	return defaultValue
-}
-
-func splitAndTrim(s, sep string) []string {
-	var result []string
-	for _, v := range splitString(s, sep) {
-		if trimmed := trimSpace(v); trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
-func splitString(s, sep string) []string {
-	var result []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep[0] {
-			result = append(result, s[start:i])
-			start = i + 1
-		}
-	}
-	result = append(result, s[start:])
-	return result
-}
-
-func trimSpace(s string) string {
-	start := 0
-	for start < len(s) && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n' || s[start] == '\r') {
-		start++
-	}
-	end := len(s)
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n' || s[end-1] == '\r') {
-		end--
-	}
-	return s[start:end]
 }

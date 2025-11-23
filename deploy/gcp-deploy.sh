@@ -114,11 +114,10 @@ echo ""
 
 # Step 6: Build and push Docker image
 echo -e "${YELLOW}📋 Step 6: Building and pushing Docker image...${NC}"
-IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:$(date +%Y%m%d-%H%M%S)"
 IMAGE_LATEST="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:latest"
 
-echo "Building image: $IMAGE"
-gcloud builds submit --tag "$IMAGE" --tag "$IMAGE_LATEST"
+echo "Building image: $IMAGE_LATEST"
+gcloud builds submit --tag "$IMAGE_LATEST"
 
 echo -e "${GREEN}✅ Image built and pushed${NC}"
 echo ""
@@ -130,7 +129,7 @@ echo -e "${YELLOW}📋 Step 7: Deploying to Cloud Run...${NC}"
 if gcloud run services describe "$SERVICE_NAME" --region="$REGION" &> /dev/null; then
     echo "Updating existing service..."
     gcloud run deploy "$SERVICE_NAME" \
-        --image="$IMAGE" \
+        --image="$IMAGE_LATEST" \
         --region="$REGION" \
         --platform=managed \
         --service-account="$SERVICE_ACCOUNT" \
@@ -149,7 +148,7 @@ if gcloud run services describe "$SERVICE_NAME" --region="$REGION" &> /dev/null;
 else
     echo "Creating new service..."
     gcloud run deploy "$SERVICE_NAME" \
-        --image="$IMAGE" \
+        --image="$IMAGE_LATEST" \
         --region="$REGION" \
         --platform=managed \
         --service-account="$SERVICE_ACCOUNT" \
@@ -195,7 +194,7 @@ echo -e "${GREEN}🎉 Deployment Complete!${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
 echo "Service URL: $SERVICE_URL"
-echo "Image: $IMAGE"
+echo "Image: $IMAGE_LATEST"
 echo ""
 echo "Next steps:"
 echo "  1. Test API: curl $SERVICE_URL/health"

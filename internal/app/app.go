@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	stdlog "log"
 	"net/http"
 	"time"
 
@@ -20,16 +21,18 @@ type App struct {
 }
 
 func New() (*App, error) {
+	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Init logger
 	if err := config.SetupLogger(cfg); err != nil {
 		return nil, fmt.Errorf("failed to setup logger: %w", err)
 	}
 
-	// Set Gin mode based on environment
+	// Gin mode
 	switch cfg.Env {
 	case "prod", "production":
 		gin.SetMode(gin.ReleaseMode)
@@ -40,11 +43,14 @@ func New() (*App, error) {
 	}
 
 	log.Info().Msg("Building application container...")
+
+	// Build DI container
 	container, err := bootstrap.BuildContainer(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build container: %w", err)
 	}
 
+	// Setup router
 	router := handler.SetupRouter(
 		container.AuthService,
 		container.UserService,
@@ -59,7 +65,15 @@ func New() (*App, error) {
 		container.Config,
 		container.Metrics,
 	)
+	if router == nil {
+		return nil, fmt.Errorf("router setup failed: nil router returned")
+	}
 
+	if container.Config.Server.Port == "" {
+		return nil, fmt.Errorf("invalid configuration: PORT must not be empty")
+	}
+
+	// Create HTTP server
 	server := &http.Server{
 		Addr:              ":" + container.Config.Server.Port,
 		Handler:           router,
@@ -67,6 +81,7 @@ func New() (*App, error) {
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		ErrorLog:          stdLoggerAdapter(),
 	}
 
 	return &App{
@@ -81,6 +96,7 @@ func (a *App) Run(ctx context.Context) error {
 		Str("env", a.container.Config.Env).
 		Msg("Zeno Auth service starting")
 
+	// Graceful shutdown
 	go func() {
 		<-ctx.Done()
 		log.Info().Msg("Shutting down HTTP server...")
@@ -90,10 +106,14 @@ func (a *App) Run(ctx context.Context) error {
 
 		if err := a.server.Shutdown(shutdownCtx); err != nil {
 			log.Error().Err(err).Msg("HTTP server shutdown error")
+			return
 		}
+
+		log.Info().Msg("HTTP server gracefully stopped")
 	}()
 
 	log.Info().Str("addr", a.server.Addr).Msg("HTTP server listening")
+
 	if err := a.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTP server error: %w", err)
 	}
@@ -105,4 +125,10 @@ func (a *App) Close() {
 	if a.container != nil {
 		a.container.Close()
 	}
+}
+
+// stdLoggerAdapter returns a *log.Logger that writes into zerolog.
+func stdLoggerAdapter() *stdlog.Logger {
+	writer := log.Logger.With().Str("component", "http-server").Logger()
+	return stdlog.New(writer, "", 0)
 }

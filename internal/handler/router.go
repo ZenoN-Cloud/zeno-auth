@@ -3,10 +3,12 @@ package handler
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/middleware"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
@@ -32,7 +34,7 @@ func SetupRouter(
 	sessionService SessionService,
 	jwtManager *token.JWTManager,
 	db *postgres.DB,
-	cfg interface{},
+	cfg *config.Config,
 	metricsCollector MetricsCollector,
 ) *gin.Engine {
 	r := gin.New()
@@ -41,25 +43,10 @@ func SetupRouter(
 	r.Use(LoggingMiddleware())
 	r.Use(SecurityHeadersMiddleware())
 
-	// Metrics middleware
-	if metricsCollector != nil {
-		type metricsInterface interface {
-			RecordRequestDuration(duration interface{})
-		}
-		if m, ok := interface{}(metricsCollector).(metricsInterface); ok {
-			_ = m // Use metrics middleware if available
-		}
-	}
-
-	// Extract CORS origins from config
+	// CORS
 	var corsOrigins []string
 	if cfg != nil {
-		type configWithCORS interface {
-			GetCORSOrigins() []string
-		}
-		if c, ok := cfg.(configWithCORS); ok {
-			corsOrigins = c.GetCORSOrigins()
-		}
+		corsOrigins = cfg.GetCORSOrigins()
 	}
 	r.Use(CORSMiddleware(corsOrigins))
 
@@ -74,28 +61,23 @@ func SetupRouter(
 		r.GET("/health/live", healthChecker.HealthLive)
 	}
 
-	// Debug endpoint - disabled in production for security
-	// Extract ENV from config
-	var env string
+	// ENV
+	env := ""
 	if cfg != nil {
-		type configWithEnv interface {
-			GetEnv() string
-		}
-		if c, ok := cfg.(configWithEnv); ok {
-			env = c.GetEnv()
-		}
+		env = strings.ToLower(cfg.GetEnv())
 	}
-	if env != "production" {
+
+	// Debug endpoint - disabled in prod/prodution (и сам handler доп. проверяет ENV)
+	if env != "production" && env != "prod" {
 		r.GET("/debug", AdminAuthMiddleware(), Debug)
 	}
 
-	// Metrics endpoint - protected in production
+	// Metrics endpoint - всегда за AdminAuthMiddleware
 	r.GET("/metrics", AdminAuthMiddleware(), func(c *gin.Context) {
 		if metricsCollector == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
 			return
 		}
-		// Try to call GetMetricsInterface() method
 		type metricsGetter interface {
 			GetMetricsInterface() interface{}
 		}
@@ -119,25 +101,9 @@ func SetupRouter(
 	if authService != nil && userService != nil && jwtManager != nil {
 		// EmailService is optional
 		var emailService *service.EmailService
-		if cfg != nil {
-			type configWithEmail interface {
-				GetEmailService() *service.EmailService
-			}
-			if c, ok := cfg.(configWithEmail); ok {
-				emailService = c.GetEmailService()
-			}
-		}
 
 		// PasswordResetService is optional
 		var passwordResetSvc *service.PasswordResetService
-		if cfg != nil {
-			type configWithPasswordReset interface {
-				GetPasswordResetService() *service.PasswordResetService
-			}
-			if c, ok := cfg.(configWithPasswordReset); ok {
-				passwordResetSvc = c.GetPasswordResetService()
-			}
-		}
 
 		authHandler := NewAuthHandler(authService, emailService, passwordResetSvc, auditService, metricsCollector)
 		userHandler := NewUserHandler(userService, passwordService)
@@ -207,10 +173,9 @@ func SetupRouter(
 		}
 	}
 
-	// Admin endpoints - protected in production
+	// Admin endpoints - protected in production (и в dev тоже)
 	admin := r.Group("/admin", AdminAuthMiddleware())
 	{
-		// Compliance reports
 		complianceHandler := NewComplianceHandler(nil)
 		admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
 		admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)

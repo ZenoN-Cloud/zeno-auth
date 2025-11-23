@@ -1,47 +1,62 @@
+# ============================
+#       BUILDER STAGE
+# ============================
 FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies
 RUN apk add --no-cache git
 
-# Copy go mod files first for better caching
+# Cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Copy source
 COPY . .
 
-# Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags='-w -s' -o zeno-auth ./cmd/auth
+# Build static binary
+RUN CGO_ENABLED=0 \
+    GOOS=linux \
+    GOARCH=amd64 \
+    go build -ldflags="-w -s" -o zeno-auth ./cmd/auth
 
-# Final stage - minimal image
+# ============================
+#        FINAL STAGE
+# ============================
 FROM alpine:latest
 
-RUN apk --no-cache add ca-certificates curl wget tzdata
+# Required packages
+RUN apk --no-cache add \
+    ca-certificates \
+    curl \
+    wget \
+    tzdata \
+    libc6-compat
 
-# Install golang-migrate
-RUN wget -qO- https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
-    mv migrate /usr/local/bin/migrate && \
-    chmod +x /usr/local/bin/migrate
+# Install golang-migrate (pinned version)
+ENV MIGRATE_VERSION=v4.17.0
+RUN wget -qO migrate.tgz "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz" \
+    && tar -xzf migrate.tgz \
+    && mv migrate /usr/local/bin/migrate \
+    && chmod +x /usr/local/bin/migrate \
+    && rm migrate.tgz
 
 # Create non-root user
 RUN addgroup -g 1000 appuser && \
     adduser -D -u 1000 -G appuser appuser
 
-WORKDIR /home/appuser
+WORKDIR /app
 
-# Copy the binary from builder stage
-COPY --from=builder /app/zeno-auth .
+# Copy binary
+COPY --from=builder /app/zeno-auth zeno-auth
+
+# Copy migrations + entrypoint
 COPY --chown=appuser:appuser migrations ./migrations
-COPY --chown=appuser:appuser scripts/entrypoint.sh ./entrypoint.sh
-RUN chmod +x ./entrypoint.sh
+COPY --chown=appuser:appuser scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Switch to non-root user
 USER appuser
 
-# Expose port
 EXPOSE 8080
 
-# Run migrations and start app
-CMD ["./entrypoint.sh"]
+CMD ["entrypoint.sh"]
