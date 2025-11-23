@@ -36,3 +36,8 @@ type Log struct {
 func (c *Config) GetCORSOrigins() []string {
 	return c.Server.CORSAllowedOrigins
 }
+
+// GetEnv returns the environment name
+func (c *Config) GetEnv() string {
+	return c.Env
+}

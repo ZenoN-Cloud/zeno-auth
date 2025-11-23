@@ -19,6 +19,7 @@ DB_USER="${DB_USER:-zeno_auth_app}"
 INSTANCE_CONNECTION_NAME="${INSTANCE_CONNECTION_NAME:-$PROJECT_ID:$REGION:$INSTANCE_ID}"
 SERVICE_NAME="${SERVICE_NAME:-zeno-auth-dev}"
 REPO_NAME="${REPO_NAME:-zeno-auth}"
+SERVICE_ACCOUNT="${SERVICE_ACCOUNT:-zeno-auth-sa@$PROJECT_ID.iam.gserviceaccount.com}"
 
 echo -e "${GREEN}🚀 Zeno Auth - GCP Cloud Run Deployment${NC}"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -65,20 +66,36 @@ echo ""
 
 # Step 4: Check Secret Manager
 echo -e "${YELLOW}📋 Step 4: Checking Secret Manager...${NC}"
+
+# Check DATABASE_URL secret
 if ! gcloud secrets describe zeno-auth-database-url &> /dev/null; then
     echo -e "${RED}❌ Secret 'zeno-auth-database-url' not found${NC}"
     echo "Please create the secret first:"
-    echo "  gcloud secrets create zeno-auth-database-url --data-file=-"
+    echo "  echo -n 'postgres://...' | gcloud secrets create zeno-auth-database-url --data-file=-"
     exit 1
 fi
 
-SECRET_VERSION=$(gcloud secrets versions list zeno-auth-database-url --format="value(name)" --limit=1)
-if [ -z "$SECRET_VERSION" ]; then
-    echo -e "${RED}❌ No secret versions found${NC}"
+DB_SECRET_VERSION=$(gcloud secrets versions list zeno-auth-database-url --format="value(name)" --limit=1)
+if [ -z "$DB_SECRET_VERSION" ]; then
+    echo -e "${RED}❌ No DATABASE_URL secret versions found${NC}"
     exit 1
 fi
+echo -e "${GREEN}✅ DATABASE_URL secret exists (version: $DB_SECRET_VERSION)${NC}"
 
-echo -e "${GREEN}✅ Secret exists (version: $SECRET_VERSION)${NC}"
+# Check JWT_PRIVATE_KEY secret
+if ! gcloud secrets describe zeno-auth-jwt-private-key &> /dev/null; then
+    echo -e "${YELLOW}⚠️  Secret 'zeno-auth-jwt-private-key' not found${NC}"
+    echo "Creating JWT keys is recommended. For now, using embedded key."
+    echo "To create:"
+    echo "  openssl genrsa 2048 | gcloud secrets create zeno-auth-jwt-private-key --data-file=-"
+else
+    JWT_SECRET_VERSION=$(gcloud secrets versions list zeno-auth-jwt-private-key --format="value(name)" --limit=1)
+    if [ -z "$JWT_SECRET_VERSION" ]; then
+        echo -e "${YELLOW}⚠️  No JWT_PRIVATE_KEY secret versions found${NC}"
+    else
+        echo -e "${GREEN}✅ JWT_PRIVATE_KEY secret exists (version: $JWT_SECRET_VERSION)${NC}"
+    fi
+fi
 echo ""
 
 # Step 5: Create Artifact Registry repository (if not exists)
@@ -116,14 +133,18 @@ if gcloud run services describe "$SERVICE_NAME" --region="$REGION" &> /dev/null;
         --image="$IMAGE" \
         --region="$REGION" \
         --platform=managed \
+        --service-account="$SERVICE_ACCOUNT" \
         --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
         --set-secrets=DATABASE_URL=zeno-auth-database-url:latest \
+        --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
+        --set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080 \
         --port=8080 \
         --memory=512Mi \
         --cpu=1 \
         --timeout=300 \
         --max-instances=10 \
         --min-instances=0 \
+        --concurrency=80 \
         --allow-unauthenticated
 else
     echo "Creating new service..."
@@ -131,15 +152,19 @@ else
         --image="$IMAGE" \
         --region="$REGION" \
         --platform=managed \
+        --service-account="$SERVICE_ACCOUNT" \
         --add-cloudsql-instances="$INSTANCE_CONNECTION_NAME" \
         --set-secrets=DATABASE_URL=zeno-auth-database-url:latest \
+        --set-secrets=JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest \
+        --set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080 \
         --allow-unauthenticated \
         --port=8080 \
         --memory=512Mi \
         --cpu=1 \
         --timeout=300 \
         --max-instances=10 \
-        --min-instances=0
+        --min-instances=0 \
+        --concurrency=80
 fi
 
 echo -e "${GREEN}✅ Service deployed${NC}"

@@ -74,8 +74,20 @@ func SetupRouter(
 		r.GET("/health/live", healthChecker.HealthLive)
 	}
 
-	// Debug and Metrics endpoints - protected in production
-	r.GET("/debug", AdminAuthMiddleware(), Debug)
+	// Debug endpoint - disabled in production for security
+	// Extract ENV from config
+	var env string
+	if cfg != nil {
+		type configWithEnv interface {
+			GetEnv() string
+		}
+		if c, ok := cfg.(configWithEnv); ok {
+			env = c.GetEnv()
+		}
+	}
+	if env != "production" {
+		r.GET("/debug", AdminAuthMiddleware(), Debug)
+	}
 
 	// Metrics endpoint - protected in production
 	r.GET("/metrics", AdminAuthMiddleware(), func(c *gin.Context) {

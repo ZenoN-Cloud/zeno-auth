@@ -19,9 +19,13 @@ func maskPassword(url string) string {
 	if url == "" {
 		return ""
 	}
-	// Simple masking - just show first 20 chars
-	if len(url) > 50 {
-		return url[:50] + "..."
+	// In production, completely redact sensitive info
+	if os.Getenv("ENV") == "production" {
+		return "[REDACTED]"
 	}
-	return url
+	// In dev/staging, show only connection scheme
+	if len(url) > 10 {
+		return "postgres://***:***@***/***"
+	}
+	return "[REDACTED]"
 }
