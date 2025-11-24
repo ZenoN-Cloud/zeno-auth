@@ -32,17 +32,22 @@ type EmailService struct {
 	verificationRepo EmailVerificationRepository
 	userRepo         UserRepository
 	auditService     *AuditService
+	emailSender      EmailSender
 }
 
 func NewEmailService(
 	verificationRepo EmailVerificationRepository,
 	userRepo UserRepository,
 	auditService *AuditService,
+	frontendBaseURL string,
 ) *EmailService {
+	sender := NewSendGridEmailSender(frontendBaseURL)
+	log.Info().Bool("email_sender_initialized", sender != nil).Msg("EmailService created")
 	return &EmailService{
 		verificationRepo: verificationRepo,
 		userRepo:         userRepo,
 		auditService:     auditService,
+		emailSender:      sender,
 	}
 }
 
@@ -63,11 +68,23 @@ func (s *EmailService) SendVerificationEmail(ctx context.Context, userID uuid.UU
 		return "", fmt.Errorf("failed to create verification: %w", err)
 	}
 
-	// TODO: Send actual email via SendGrid/AWS SES
-	log.Info().
-		Str("user_id", userID.String()).
-		Str("token", token).
-		Msg("Email verification token generated (email sending not implemented)")
+	// Get user email
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// Send email
+	if s.emailSender != nil {
+		if err := s.emailSender.SendVerificationEmail(ctx, user.Email, token); err != nil {
+			log.Error().Err(err).Str("email", user.Email).Msg("Failed to send verification email")
+			return "", fmt.Errorf("failed to send verification email: %w", err)
+		}
+		log.Info().Str("email", user.Email).Msg("Verification email sent successfully")
+	} else {
+		log.Warn().Msg("EmailSender is nil, cannot send email")
+		return "", fmt.Errorf("email service not configured")
+	}
 
 	return token, nil
 }
@@ -178,12 +195,11 @@ func (s *EmailService) SendAccountLockoutNotification(
 		return err
 	}
 
-	// TODO: Send actual email via SendGrid/AWS SES
-	log.Warn().
-		Str("user_id", userID.String()).
-		Str("email", user.Email).
-		Time("locked_until", lockedUntil).
-		Msg("Account lockout notification (email sending not implemented)")
+	if s.emailSender != nil {
+		if err := s.emailSender.SendAccountLockoutEmail(ctx, user.Email, lockedUntil.Format("2006-01-02 15:04:05 MST")); err != nil {
+			log.Error().Err(err).Str("email", user.Email).Msg("Failed to send lockout email")
+		}
+	}
 
 	return nil
 }
@@ -196,11 +212,12 @@ func (s *EmailService) SendPasswordChangedNotification(ctx context.Context, user
 		return err
 	}
 
-	// TODO: Send actual email via SendGrid/AWS SES
-	log.Info().
-		Str("user_id", userID.String()).
-		Str("email", user.Email).
-		Msg("Password changed notification (email sending not implemented)")
+	if s.emailSender != nil {
+		if err := s.emailSender.SendPasswordChangedEmail(ctx, user.Email); err != nil {
+			log.Error().Err(err).Str("email", user.Email).Msg("Failed to send password changed email")
+			return fmt.Errorf("failed to send notification: %w", err)
+		}
+	}
 
 	return nil
 }

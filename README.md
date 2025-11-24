@@ -53,6 +53,7 @@ make gcp-status-check
 - **[GDPR Compliance](docs/GDPR_COMPLIANCE.md)** - Privacy & data protection
 - **[Environment Variables](docs/ENV_VARIABLES.md)** - Configuration reference
 - **[Password Policy](docs/PASSWORD_POLICY.md)** - Security requirements
+- **[Email Setup](docs/EMAIL_SETUP.md)** - SendGrid configuration
 - **[Deployment Guide](deploy/README.md)** - Production deployment
 - **[API Specification](api/openapi.yaml)** - OpenAPI 3.0 spec
 - **[Changelog](CHANGELOG.md)** - Version history
@@ -109,7 +110,7 @@ make integration
 ```env
 DATABASE_URL=postgres://user:pass@host:5432/dbname
 JWT_PRIVATE_KEY=<base64-encoded-key>
-CORS_ALLOWED_ORIGINS=https://app.example.com
+CORS_ALLOWED_ORIGINS=https://storage.googleapis.com
 ENV=production
 PORT=8080
 ```

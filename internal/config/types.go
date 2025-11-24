@@ -1,13 +1,14 @@
 package config
 
 type Config struct {
-	Env      string   `json:"env"`
-	AppName  string   `json:"app_name"`
-	Timezone string   `json:"timezone"`
-	Server   Server   `json:"server"`
-	Database Database `json:"database"`
-	JWT      JWT      `json:"jwt"`
-	Log      Log      `json:"log"`
+	Env             string   `json:"env"`
+	AppName         string   `json:"app_name"`
+	Timezone        string   `json:"timezone"`
+	FrontendBaseURL string   `json:"frontend_base_url"`
+	Server          Server   `json:"server"`
+	Database        Database `json:"database"`
+	JWT             JWT      `json:"jwt"`
+	Log             Log      `json:"log"`
 }
 
 type Server struct {

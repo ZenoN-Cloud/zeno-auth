@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
-	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 )
 
 // MockUserRepo for testing
@@ -247,12 +246,5 @@ func TestSessionFingerprint(t *testing.T) {
 				assert.Equal(t, tt.expectValid, isValid)
 			},
 		)
-	}
-}
-
-// Ensure service.ErrEmailExists is defined
-func init() {
-	if service.ErrEmailExists == nil {
-		panic("service.ErrEmailExists must be defined")
 	}
 }

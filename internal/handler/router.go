@@ -36,6 +36,8 @@ func SetupRouter(
 	db *postgres.DB,
 	cfg *config.Config,
 	metricsCollector MetricsCollector,
+	emailService *service.EmailService,
+	passwordResetService *service.PasswordResetService,
 ) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -72,8 +74,8 @@ func SetupRouter(
 		r.GET("/debug", AdminAuthMiddleware(), Debug)
 	}
 
-	// Metrics endpoint - всегда за AdminAuthMiddleware
-	r.GET("/metrics", AdminAuthMiddleware(), func(c *gin.Context) {
+	// Metrics handler
+	metricsHandler := func(c *gin.Context) {
 		if metricsCollector == nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
 			return
@@ -86,7 +88,14 @@ func SetupRouter(
 			return
 		}
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Metrics not available"})
-	})
+	}
+
+	// Metrics endpoint - protected in prod, public in dev
+	if env == "production" || env == "prod" {
+		r.GET("/metrics", AdminAuthMiddleware(), metricsHandler)
+	} else {
+		r.GET("/metrics", metricsHandler)
+	}
 
 	// Cleanup endpoints (protected)
 	if db != nil {
@@ -99,13 +108,8 @@ func SetupRouter(
 
 	// Only add other endpoints if services are available
 	if authService != nil && userService != nil && jwtManager != nil {
-		// EmailService is optional
-		var emailService *service.EmailService
-
-		// PasswordResetService is optional
-		var passwordResetSvc *service.PasswordResetService
-
-		authHandler := NewAuthHandler(authService, emailService, passwordResetSvc, auditService, metricsCollector)
+		// PasswordResetService is now optional via parameter
+		authHandler := NewAuthHandler(authService, emailService, passwordResetService, auditService, metricsCollector)
 		userHandler := NewUserHandler(userService, passwordService)
 		jwksHandler := NewJWKSHandler(jwtManager)
 
@@ -173,12 +177,14 @@ func SetupRouter(
 		}
 	}
 
-	// Admin endpoints - protected in production (и в dev тоже)
-	admin := r.Group("/admin", AdminAuthMiddleware())
-	{
-		complianceHandler := NewComplianceHandler(nil)
-		admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
-		admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)
+	// Admin endpoints - always protected, enabled in production
+	if env == "production" || env == "prod" {
+		admin := r.Group("/admin", AdminAuthMiddleware())
+		{
+			complianceHandler := NewComplianceHandler(nil)
+			admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
+			admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)
+		}
 	}
 
 	return r

@@ -2,24 +2,19 @@ package service
 
 import (
 	"context"
-	"errors"
+	stdErrors "errors"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	appErrors "github.com/ZenoN-Cloud/zeno-auth/internal/errors"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
-)
-
-var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
-	ErrUserNotActive      = errors.New("user not active")
-	ErrEmailExists        = errors.New("email already exists")
 )
 
 type AuthService struct {
@@ -70,14 +65,15 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 	// Validate password strength
 	passwordValidator := validator.NewPasswordValidator()
 	if err := passwordValidator.Validate(password); err != nil {
+		// propagate validator error upward (it maps to 400)
 		return nil, err
 	}
 
 	_, err := s.userRepo.GetByEmail(ctx, email)
 	if err == nil {
-		return nil, ErrEmailExists
+		return nil, appErrors.ErrEmailAlreadyUsed
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if !stdErrors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 
@@ -147,19 +143,19 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", "", ErrInvalidCredentials
+		if stdErrors.Is(err, pgx.ErrNoRows) {
+			return "", "", appErrors.ErrInvalidCredentials
 		}
 		return "", "", err
 	}
 
 	if !user.IsActive {
-		return "", "", ErrUserNotActive
+		return "", "", appErrors.ErrInvalidCredentials
 	}
 
-	// Check if account is locked
+	// LockedUntil
 	if user.LockedUntil != nil && user.LockedUntil.After(time.Now()) {
-		return "", "", errors.New("account is locked due to too many failed login attempts")
+		return "", "", appErrors.ErrInvalidCredentials
 	}
 
 	valid, err := s.passwordManager.Verify(ctx, password, user.PasswordHash)
@@ -167,18 +163,16 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 		return "", "", err
 	}
 	if !valid {
-		// Increment failed attempts
 		user.FailedLoginAttempts++
 		if user.FailedLoginAttempts >= 5 {
 			lockUntil := time.Now().Add(30 * time.Minute)
 			user.LockedUntil = &lockUntil
-			// Notify user about account lockout
 			if s.emailService != nil {
 				go func() { _ = s.emailService.SendAccountLockoutNotification(ctx, user.ID, lockUntil) }()
 			}
 		}
 		_ = s.userRepo.Update(ctx, user)
-		return "", "", ErrInvalidCredentials
+		return "", "", appErrors.ErrInvalidCredentials
 	}
 
 	// Reset failed attempts on successful login
@@ -196,7 +190,7 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 
 	// User must have at least one organization
 	if len(orgs) == 0 {
-		return "", "", errors.New("user has no organizations")
+		return "", "", appErrors.ErrInvalidCredentials
 	}
 
 	// Use first organization (later can add org selection)
@@ -235,18 +229,20 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAge
 
 	refreshToken, err := s.refreshRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return "", ErrInvalidCredentials
+		if stdErrors.Is(err, pgx.ErrNoRows) {
+			return "", appErrors.ErrInvalidCredentials
+		}
+		return "", err
 	}
 
 	if refreshToken.RevokedAt != nil || refreshToken.ExpiresAt.Before(time.Now()) {
-		return "", ErrInvalidCredentials
+		return "", appErrors.ErrInvalidCredentials
 	}
 
-	// Validate session fingerprint to prevent session hijacking
 	if refreshToken.FingerprintHash != nil && *refreshToken.FingerprintHash != "" {
 		currentFingerprint := token.GenerateFingerprint(userAgent, ipAddress, "")
 		if currentFingerprint != *refreshToken.FingerprintHash {
-			return "", errors.New("session fingerprint mismatch - possible session hijacking")
+			return "", appErrors.ErrInvalidFingerprint
 		}
 	}
 

@@ -5,20 +5,15 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"time"
 
+	"github.com/ZenoN-Cloud/zeno-auth/internal/errors"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-)
-
-var (
-	ErrResetTokenExpired = errors.New("reset token expired")
-	ErrResetTokenUsed    = errors.New("reset token already used")
 )
 
 type PasswordResetRepository interface {
@@ -35,6 +30,7 @@ type PasswordResetService struct {
 	refreshRepo     RefreshTokenRepository
 	passwordManager *token.PasswordManager
 	auditService    *AuditService
+	emailSender     EmailSender
 }
 
 func NewPasswordResetService(
@@ -43,6 +39,7 @@ func NewPasswordResetService(
 	refreshRepo RefreshTokenRepository,
 	passwordManager *token.PasswordManager,
 	auditService *AuditService,
+	frontendBaseURL string,
 ) *PasswordResetService {
 	return &PasswordResetService{
 		resetRepo:       resetRepo,
@@ -50,6 +47,7 @@ func NewPasswordResetService(
 		refreshRepo:     refreshRepo,
 		passwordManager: passwordManager,
 		auditService:    auditService,
+		emailSender:     NewSendGridEmailSender(frontendBaseURL),
 	}
 }
 
@@ -87,39 +85,38 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email, 
 		_ = s.auditService.Log(ctx, &user.ID, "password_reset_requested", nil, ipAddress, userAgent)
 	}
 
-	// TODO: Send actual email via SendGrid/AWS SES
-	log.Info().
-		Str("user_id", user.ID.String()).
-		Str("email", email).
-		Str("token", resetToken).
-		Msg("Password reset token generated (email sending not implemented)")
+	// Send email
+	if s.emailSender != nil {
+		if err := s.emailSender.SendPasswordResetEmail(ctx, user.Email, resetToken); err != nil {
+			log.Error().Err(err).Str("email", user.Email).Msg("Failed to send password reset email")
+			return "", fmt.Errorf("failed to send reset email: %w", err)
+		}
+	}
 
 	return resetToken, nil
 }
 
 func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, newPassword, ipAddress, userAgent string) error {
-	// Validate new password
 	passwordValidator := validator.NewPasswordValidator()
 	if err := passwordValidator.Validate(newPassword); err != nil {
 		return err
 	}
 
-	tokenHash := hashResetToken(resetToken)
-	token, err := s.resetRepo.GetByTokenHash(ctx, tokenHash)
+	hash := hashResetToken(resetToken)
+	resetRecord, err := s.resetRepo.GetByTokenHash(ctx, hash)
 	if err != nil {
-		return errors.New("invalid reset token")
+		return errors.ErrInvalidResetToken
 	}
 
-	if token.UsedAt != nil {
-		return ErrResetTokenUsed
+	if resetRecord.UsedAt != nil {
+		return errors.ErrInvalidResetToken
 	}
 
-	if time.Now().After(token.ExpiresAt) {
-		return ErrResetTokenExpired
+	if time.Now().After(resetRecord.ExpiresAt) {
+		return errors.ErrResetTokenExpired
 	}
 
-	// Get user
-	user, err := s.userRepo.GetByID(ctx, token.UserID)
+	user, err := s.userRepo.GetByID(ctx, resetRecord.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
@@ -137,7 +134,7 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 	}
 
 	// Mark token as used
-	if err := s.resetRepo.MarkAsUsed(ctx, token.ID); err != nil {
+	if err := s.resetRepo.MarkAsUsed(ctx, resetRecord.ID); err != nil {
 		return fmt.Errorf("failed to mark token as used: %w", err)
 	}
 

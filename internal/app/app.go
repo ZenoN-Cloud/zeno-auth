@@ -64,6 +64,8 @@ func New() (*App, error) {
 		container.DB,
 		container.Config,
 		container.Metrics,
+		container.EmailService,
+		container.PasswordResetService,
 	)
 	if router == nil {
 		return nil, fmt.Errorf("router setup failed: nil router returned")

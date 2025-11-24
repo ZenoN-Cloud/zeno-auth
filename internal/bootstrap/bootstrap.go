@@ -21,15 +21,16 @@ type Container struct {
 	RefreshManager  *token.RefreshManager
 	PasswordManager *token.PasswordManager
 
-	AuthService     service.AuthServiceInterface
-	UserService     service.UserServiceInterface
-	ConsentService  *service.ConsentService
-	AuditService    *service.AuditService
-	CleanupService  *service.CleanupService
-	GDPRService     *service.GDPRService
-	PasswordService *service.PasswordService
-	SessionService  *service.SessionService
-	EmailService    *service.EmailService
+	AuthService          service.AuthServiceInterface
+	UserService          service.UserServiceInterface
+	ConsentService       *service.ConsentService
+	AuditService         *service.AuditService
+	CleanupService       *service.CleanupService
+	GDPRService          *service.GDPRService
+	PasswordService      *service.PasswordService
+	SessionService       *service.SessionService
+	EmailService         *service.EmailService
+	PasswordResetService *service.PasswordResetService
 }
 
 func BuildContainer(cfg *config.Config) (*Container, error) {
@@ -69,10 +70,11 @@ func BuildContainer(cfg *config.Config) (*Container, error) {
 	consentRepo := postgres.NewConsentRepository(db.Pool())
 	auditRepo := postgres.NewAuditLogRepository(db.Pool())
 	emailVerificationRepo := postgres.NewEmailVerificationRepository(db.Pool())
+	passwordResetRepo := postgres.NewPasswordResetRepository(db.Pool())
 
 	serviceConfig := service.NewConfig(cfg)
 	container.AuditService = service.NewAuditService(auditRepo)
-	container.EmailService = service.NewEmailService(emailVerificationRepo, userRepo, container.AuditService)
+	container.EmailService = service.NewEmailService(emailVerificationRepo, userRepo, container.AuditService, cfg.FrontendBaseURL)
 	container.AuthService = service.NewAuthService(
 		userRepo, orgRepo, membershipRepo, refreshRepo,
 		jwtManager, container.RefreshManager, container.PasswordManager,
@@ -88,6 +90,9 @@ func BuildContainer(cfg *config.Config) (*Container, error) {
 		userRepo, refreshRepo, container.PasswordManager, container.AuditService, container.EmailService, db,
 	)
 	container.SessionService = service.NewSessionService(refreshRepo)
+	container.PasswordResetService = service.NewPasswordResetService(
+		passwordResetRepo, userRepo, refreshRepo, container.PasswordManager, container.AuditService, cfg.FrontendBaseURL,
+	)
 
 	log.Info().Msg("All services initialized")
 

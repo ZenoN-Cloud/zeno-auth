@@ -55,4 +55,14 @@ echo "Starting application: ./zeno-auth"
 echo "----------------------------------------"
 
 # exec → replace shell with app (correct for Cloud Run)
+if [ ! -f ./zeno-auth ]; then
+  echo "ERROR: Binary ./zeno-auth not found!"
+  exit 1
+fi
+
+if [ ! -x ./zeno-auth ]; then
+  echo "ERROR: Binary ./zeno-auth is not executable!"
+  exit 1
+fi
+
 exec ./zeno-auth
