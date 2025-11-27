@@ -93,12 +93,11 @@ integration-tests:
     - develop
 
 # Security stage
-gosec:
+.gosec:
   stage: security
   image: securego/gosec:latest
   script:
-    - gosec ./... || echo "⚠️  gosec found issues (non-blocking)"
-    - exit 0
+    - gosec ./...
   allow_failure: true
   only:
     - merge_requests
