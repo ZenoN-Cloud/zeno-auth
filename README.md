@@ -2,6 +2,8 @@
 
 Core authentication and identity service for the **ZenoN-Cloud** platform.
 
+[![Pipeline](https://gitlab.com/zeno-cy/zeno-auth/badges/main/pipeline.svg)](https://gitlab.com/zeno-cy/zeno-auth/-/pipelines)
+[![Coverage](https://gitlab.com/zeno-cy/zeno-auth/badges/main/coverage.svg)](https://gitlab.com/zeno-cy/zeno-auth/-/commits/main)
 [![Production Ready](https://img.shields.io/badge/status-production%20ready-brightgreen)](docs/architecture.md)
 [![GDPR Compliant](https://img.shields.io/badge/GDPR-compliant-blue)](docs/GDPR_COMPLIANCE.md)
 
@@ -55,6 +57,7 @@ make gcp-status-check
 - **[Password Policy](docs/PASSWORD_POLICY.md)** - Security requirements
 - **[Email Setup](docs/EMAIL_SETUP.md)** - SendGrid configuration
 - **[Deployment Guide](deploy/README.md)** - Production deployment
+- **[GitLab CI/CD Setup](.gitlab/GITLAB_SETUP.md)** - CI/CD configuration
 - **[API Specification](api/openapi.yaml)** - OpenAPI 3.0 spec
 - **[Changelog](CHANGELOG.md)** - Version history
 
@@ -230,7 +233,9 @@ zeno-auth/
 2. Create feature branch (`git checkout -b feature/amazing`)
 3. Commit changes (`git commit -m 'Add amazing feature'`)
 4. Push to branch (`git push origin feature/amazing`)
-5. Open Pull Request
+5. Open Merge Request
+
+See [Merge Request Template](.gitlab/merge_request_templates/Default.md) for details.
 
 ## 📄 License
 
@@ -238,6 +243,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
+**Repository:** [gitlab.com/zeno-cy/zeno-auth](https://gitlab.com/zeno-cy/zeno-auth)  
 **Status:** 🟢 Production Ready  
 **Version:** 1.1.0  
 **Deployed:** https://zeno-auth-dev-umu7aajgeq-ey.a.run.app

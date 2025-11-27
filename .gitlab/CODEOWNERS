@@ -1,0 +1,20 @@
+# GitLab Code Owners
+# https://docs.gitlab.com/ee/user/project/codeowners/
+
+# Default owners for everything
+* @maximviazov
+
+# CI/CD configuration
+/.gitlab-ci.yml @maximviazov
+/.gitlab/ @maximviazov
+/deploy/ @maximviazov
+
+# Security-sensitive files
+/internal/token/ @maximviazov
+/internal/service/auth.go @maximviazov
+/migrations/ @maximviazov
+
+# Documentation
+/docs/ @maximviazov
+README.md @maximviazov
+CONTRIBUTING.md @maximviazov

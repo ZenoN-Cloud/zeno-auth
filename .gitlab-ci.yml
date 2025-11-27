@@ -1,0 +1,270 @@
+stages:
+  - lint
+  - test
+  - security
+  - build
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+  PROJECT_ID: "zeno-cy-dev-001"
+  REGION: "europe-west3"
+  SERVICE_NAME: "zeno-auth-dev"
+  REPO_NAME: "zeno-auth"
+  GO_VERSION: "1.21"
+
+# Lint stage
+golangci-lint:
+  stage: lint
+  image: golangci/golangci-lint:v1.60-alpine
+  script:
+    - golangci-lint run -v --timeout 5m
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+go-fmt:
+  stage: lint
+  image: golang:${GO_VERSION}-alpine
+  script:
+    - gofmt -l . | tee /tmp/fmt-output
+    - test ! -s /tmp/fmt-output
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Test stage
+unit-tests:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  services:
+    - postgres:15-alpine
+  variables:
+    POSTGRES_DB: zeno_auth_test
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    DATABASE_URL: "postgres://test:test@postgres:5432/zeno_auth_test?sslmode=disable"
+    CGO_ENABLED: "0"
+  before_script:
+    - apk add --no-cache git make gcc musl-dev
+    - go mod download
+  script:
+    - make test
+    - go test -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out
+  coverage: '/total:.*?(\d+\.\d+)%/'
+  artifacts:
+    reports:
+      junit: report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.out
+      - coverage.xml
+  only:
+    - merge_requests
+    - main
+    - develop
+
+integration-tests:
+  stage: test
+  image: golang:${GO_VERSION}-alpine
+  services:
+    - postgres:15-alpine
+  variables:
+    POSTGRES_DB: zeno_auth_test
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    DATABASE_URL: "postgres://test:test@postgres:5432/zeno_auth_test?sslmode=disable"
+  before_script:
+    - apk add --no-cache git make gcc musl-dev
+    - go mod download
+  script:
+    - make integration
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Security stage
+gosec:
+  stage: security
+  image: securego/gosec:latest
+  script:
+    - gosec -fmt json -out gosec-report.json ./...
+  artifacts:
+    reports:
+      sast: gosec-report.json
+    paths:
+      - gosec-report.json
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+secret-detection:
+  stage: security
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git
+    - wget -O gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
+    - tar -xzf gitleaks.tar.gz
+    - chmod +x gitleaks
+  script:
+    - ./gitleaks detect --source . --verbose --no-git
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+dependency-scanning:
+  stage: security
+  image: golang:${GO_VERSION}-alpine
+  before_script:
+    - apk add --no-cache git
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+  script:
+    - govulncheck ./...
+  allow_failure: true
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Build stage
+build-docker:
+  stage: build
+  image: google/cloud-sdk:alpine
+  services:
+    - docker:24-dind
+  before_script:
+    - apk add --no-cache docker-cli
+    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
+    - gcloud auth activate-service-account --key-file gcp-key.json
+    - gcloud config set project $PROJECT_ID
+    - gcloud auth configure-docker $REGION-docker.pkg.dev
+  script:
+    - |
+      IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:$CI_COMMIT_SHA"
+      IMAGE_LATEST="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:latest"
+      
+      docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
+      docker push $IMAGE_TAG
+      docker push $IMAGE_LATEST
+      
+      echo "IMAGE_TAG=$IMAGE_TAG" >> build.env
+  artifacts:
+    reports:
+      dotenv: build.env
+  only:
+    - main
+    - develop
+
+# Deploy stage
+deploy:dev:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  dependencies:
+    - build-docker
+  before_script:
+    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
+    - gcloud auth activate-service-account --key-file gcp-key.json
+    - gcloud config set project $PROJECT_ID
+  script:
+    - |
+      gcloud run deploy $SERVICE_NAME \
+        --image=$IMAGE_TAG \
+        --region=$REGION \
+        --platform=managed \
+        --service-account=zeno-auth-sa@$PROJECT_ID.iam.gserviceaccount.com \
+        --add-cloudsql-instances=$PROJECT_ID:$REGION:zeno-auth-db-dev \
+        --set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest,SENDGRID_API_KEY=zeno-auth-sendgrid-api-key:latest \
+        --set-env-vars=ENV=development,APP_NAME=zeno-auth,CORS_ALLOWED_ORIGINS=https://storage.googleapis.com,EMAIL_FROM=noreply@em2292.zeno-cy.com,EMAIL_FROM_NAME=ZenoN-Cloud \
+        --port=8080 \
+        --memory=512Mi \
+        --cpu=1 \
+        --timeout=300 \
+        --max-instances=10 \
+        --min-instances=0 \
+        --concurrency=80 \
+        --allow-unauthenticated
+      
+      SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
+      echo "🚀 Deployed to: $SERVICE_URL"
+      
+      # Health check
+      sleep 10
+      curl -f "$SERVICE_URL/health" || exit 1
+  environment:
+    name: development
+    url: https://zeno-auth-dev-umu7aajgeq-ey.a.run.app
+    on_stop: stop:dev
+  only:
+    - main
+
+stop:dev:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  before_script:
+    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
+    - gcloud auth activate-service-account --key-file gcp-key.json
+    - gcloud config set project $PROJECT_ID
+  script:
+    - gcloud run services delete $SERVICE_NAME --region=$REGION --quiet
+  environment:
+    name: development
+    action: stop
+  when: manual
+  only:
+    - main
+
+deploy:prod:
+  stage: deploy
+  image: google/cloud-sdk:alpine
+  dependencies:
+    - build-docker
+  variables:
+    SERVICE_NAME: "zeno-auth-prod"
+    PROJECT_ID: "zeno-cy-prod-001"
+  before_script:
+    - echo $GCP_SERVICE_ACCOUNT_KEY_PROD | base64 -d > gcp-key.json
+    - gcloud auth activate-service-account --key-file gcp-key.json
+    - gcloud config set project $PROJECT_ID
+  script:
+    - |
+      gcloud run deploy $SERVICE_NAME \
+        --image=$IMAGE_TAG \
+        --region=$REGION \
+        --platform=managed \
+        --service-account=zeno-auth-sa@$PROJECT_ID.iam.gserviceaccount.com \
+        --add-cloudsql-instances=$PROJECT_ID:$REGION:zeno-auth-db-prod \
+        --set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest,SENDGRID_API_KEY=zeno-auth-sendgrid-api-key:latest \
+        --set-env-vars=ENV=production,APP_NAME=zeno-auth,CORS_ALLOWED_ORIGINS=https://zeno-cy.com,EMAIL_FROM=noreply@em2292.zeno-cy.com,EMAIL_FROM_NAME=ZenoN-Cloud \
+        --port=8080 \
+        --memory=1Gi \
+        --cpu=2 \
+        --timeout=300 \
+        --max-instances=50 \
+        --min-instances=1 \
+        --concurrency=80 \
+        --allow-unauthenticated
+      
+      SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
+      echo "🚀 Production deployed to: $SERVICE_URL"
+      
+      # Health check
+      sleep 10
+      curl -f "$SERVICE_URL/health" || exit 1
+  environment:
+    name: production
+    url: https://zeno-auth-prod.zeno-cy.com
+  when: manual
+  only:
+    - main

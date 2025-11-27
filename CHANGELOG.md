@@ -1,5 +1,34 @@
 # Changelog
 
+## 2025-01-XX - Миграция на GitLab
+
+### Изменено
+- 🦊 Полная миграция с GitHub на GitLab
+- 🔄 Обновлен CI/CD pipeline с расширенными возможностями
+- 📊 Добавлены badges для pipeline и coverage
+- 🔒 Добавлены security scanning (gosec, gitleaks, govulncheck)
+- 📝 Обновлена документация для GitLab
+
+### Добавлено
+- `.gitlab-ci.yml` - полноценный CI/CD pipeline
+- `.gitlab/merge_request_templates/` - шаблоны для MR
+- `.gitlab/issue_templates/` - шаблоны для issues
+- `.gitlab/GITLAB_SETUP.md` - инструкция по настройке CI/CD
+- `.golangci.yml` - конфигурация линтера
+- `CONTRIBUTING.md` - руководство по контрибуции
+- Makefile команды: `gitlab-validate`, `gitlab-lint`, `gitlab-push`
+
+### Удалено
+- `.github/` - GitHub Actions workflows
+- Все упоминания GitHub из документации
+
+### CI/CD Stages
+1. **Lint** - golangci-lint, gofmt
+2. **Test** - unit tests, integration tests
+3. **Security** - gosec, secret detection, dependency scanning
+4. **Build** - Docker image build & push to GCP Artifact Registry
+5. **Deploy** - автоматический деплой в dev, ручной в prod
+
 ## 2025-11-16 - Исправления и оптимизация
 
 ### Исправлено

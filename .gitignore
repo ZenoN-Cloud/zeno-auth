@@ -43,3 +43,15 @@ logs/
 # Coverage
 coverage.out
 coverage.html
+coverage.xml
+report.xml
+
+# GitLab
+gosec-report.json
+gitleaks*
+!.gitlab/
+
+# GCP keys (never commit!)
+*-key.json
+*-key-base64.txt
+gcp-key.json
