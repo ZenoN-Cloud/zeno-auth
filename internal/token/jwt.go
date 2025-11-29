@@ -10,9 +10,12 @@ import (
 )
 
 type Claims struct {
-	UserID uuid.UUID `json:"user_id"`
-	OrgID  uuid.UUID `json:"org_id"`
-	Roles  []string  `json:"roles"`
+	UserID             uuid.UUID `json:"user_id"`
+	OrgID              uuid.UUID `json:"org_id"`
+	Roles              []string  `json:"roles"`
+	OrgStatus          string    `json:"org_status"`
+	SubscriptionStatus string    `json:"subscription_status,omitempty"`
+	TrialEndsAt        *int64    `json:"trial_ends_at,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -45,6 +48,10 @@ func NewJWTManager(privateKeyPEM, publicKeyPEM string) (*JWTManager, error) {
 }
 
 func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, roles []string, ttlSeconds int) (string, error) {
+	return j.GenerateWithOrgStatus(ctx, userID, orgID, roles, "created", "", nil, ttlSeconds)
+}
+
+func (j *JWTManager) GenerateWithOrgStatus(ctx context.Context, userID, orgID uuid.UUID, roles []string, orgStatus, subStatus string, trialEndsAt *int64, ttlSeconds int) (string, error) {
 	select {
 	case <-ctx.Done():
 		return "", ctx.Err()
@@ -55,9 +62,12 @@ func (j *JWTManager) Generate(ctx context.Context, userID, orgID uuid.UUID, role
 	jti := uuid.New().String() // Unique token ID for revocation
 
 	claims := Claims{
-		UserID: userID,
-		OrgID:  orgID,
-		Roles:  roles,
+		UserID:             userID,
+		OrgID:              orgID,
+		Roles:              roles,
+		OrgStatus:          orgStatus,
+		SubscriptionStatus: subStatus,
+		TrialEndsAt:        trialEndsAt,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
 			ID:        jti,

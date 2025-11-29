@@ -14,11 +14,11 @@ echo "----------------------------------------"
 # ---- WAIT FOR DATABASE -------------------------------------------------------
 if [ -n "${DATABASE_URL}" ]; then
   echo "Waiting for database to become available..."
-  RETRIES=10
-  SLEEP=2
+  RETRIES=30
+  SLEEP=3
 
   for i in $(seq 1 $RETRIES); do
-    if migrate -path ./migrations -database "${DATABASE_URL}" version >/dev/null 2>&1; then
+    if migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
       echo "Database is reachable!"
       break
     fi
@@ -28,7 +28,7 @@ if [ -n "${DATABASE_URL}" ]; then
   done
 
   # Check after final attempt
-  if ! migrate -path ./migrations -database "${DATABASE_URL}" version >/dev/null 2>&1; then
+  if ! migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
     echo "ERROR: Database is still unreachable after ${RETRIES} attempts"
     exit 1
   fi
