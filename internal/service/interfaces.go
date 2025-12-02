@@ -9,7 +9,7 @@ import (
 )
 
 type AuthServiceInterface interface {
-	Register(ctx context.Context, email, password, fullName string) (*model.User, error)
+	Register(ctx context.Context, email, password, fullName, organizationName string) (*model.User, error)
 	Login(ctx context.Context, email, password, userAgent, ipAddress string) (string, string, error)
 	RefreshToken(ctx context.Context, refreshToken, userAgent, ipAddress string) (string, error)
 	Logout(ctx context.Context, userID uuid.UUID) error

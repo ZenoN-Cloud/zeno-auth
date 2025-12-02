@@ -125,6 +125,18 @@ docs: ## Generate documentation
 	@godoc -http=:6060
 
 # Development helpers
+generate-keys: ## Generate JWT RSA keys for development
+	@echo "Generating JWT RSA keys..."
+	@mkdir -p keys
+	@openssl genrsa -out keys/private.pem 2048 2>/dev/null
+	@openssl rsa -in keys/private.pem -pubout -out keys/public.pem 2>/dev/null
+	@echo "JWT_PRIVATE_KEY=$$(cat keys/private.pem | base64 | tr -d '\n')" > .env.local
+	@echo "JWT_PUBLIC_KEY=$$(cat keys/public.pem | base64 | tr -d '\n')" >> .env.local
+	@echo "✅ Keys generated in keys/ directory"
+	@echo "✅ Base64 encoded keys saved to .env.local"
+	@echo ""
+	@echo "Copy JWT_PRIVATE_KEY from .env.local to your root .env file"
+
 dev-seed: ## Seed development data
 	@echo "Seeding development data..."
 	@./scripts/seed-dev.sh

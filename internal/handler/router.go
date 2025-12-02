@@ -14,6 +14,7 @@ import (
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/service"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/token"
+	"github.com/rs/zerolog/log"
 )
 
 type ConsentService interface {
@@ -135,8 +136,16 @@ func SetupRouter(
 			me := v1.Group("/me", AuthMiddleware(jwtManager))
 			{
 				me.GET("", userHandler.GetProfile)
+				me.GET("/status", userHandler.GetProfile)
 				if passwordService != nil {
 					me.POST("/change-password", userHandler.ChangePassword)
+				}
+
+				// Organizations
+				if db != nil {
+					orgRepo := postgres.NewOrganizationRepo(db)
+					orgHandler := NewOrganizationHandlerWithRepo(orgRepo, log.Logger)
+					me.GET("/organizations", orgHandler.GetUserOrganizations)
 				}
 
 				if consentService != nil {
@@ -160,6 +169,14 @@ func SetupRouter(
 					me.DELETE("/sessions", sessionHandler.RevokeAllSessions)
 				}
 			}
+
+			// Organizations at v1 level
+			if db != nil {
+				orgRepo := postgres.NewOrganizationRepo(db)
+				orgHandler := NewOrganizationHandlerWithRepo(orgRepo, log.Logger)
+				v1.GET("/organizations", AuthMiddleware(jwtManager), orgHandler.GetUserOrganizations)
+				v1.GET("/status", AuthMiddleware(jwtManager), userHandler.GetProfile)
+			}
 		}
 
 		// Legacy routes (without versioning) - for backward compatibility
@@ -174,6 +191,14 @@ func SetupRouter(
 		me := r.Group("/me", AuthMiddleware(jwtManager))
 		{
 			me.GET("", userHandler.GetProfile)
+		}
+
+		// Legacy routes for frontend compatibility
+		if db != nil {
+			orgRepo := postgres.NewOrganizationRepo(db)
+			orgHandler := NewOrganizationHandlerWithRepo(orgRepo, log.Logger)
+			r.GET("/status", AuthMiddleware(jwtManager), userHandler.GetProfile)
+			r.GET("/organizations", AuthMiddleware(jwtManager), orgHandler.GetUserOrganizations)
 		}
 	}
 

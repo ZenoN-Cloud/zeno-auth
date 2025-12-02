@@ -30,7 +30,7 @@ func (s *OrganizationService) Create(ctx context.Context, name string, ownerUser
 	org := &model.Organization{
 		Name:        name,
 		OwnerUserID: ownerUserID,
-		Status:      model.OrgStatusActive,
+		Status:      "active",
 	}
 
 	if err := s.orgRepo.Create(ctx, org); err != nil {

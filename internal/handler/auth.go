@@ -49,11 +49,17 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
 		return
 	}
+	if err := inputValidator.ValidateName(req.OrganizationName); err != nil {
+		httpErr := errors.MapErrorToHTTP(err)
+		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)
+		return
+	}
 
 	req.Email = inputValidator.SanitizeEmail(req.Email)
 	req.FullName = inputValidator.SanitizeName(req.FullName)
+	req.OrganizationName = inputValidator.SanitizeName(req.OrganizationName)
 
-	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, req.FullName)
+	user, err := h.authService.Register(c.Request.Context(), req.Email, req.Password, req.FullName, req.OrganizationName)
 	if err != nil {
 		httpErr := errors.MapErrorToHTTP(err)
 		response.Error(c, httpErr.StatusCode, httpErr.Code, httpErr.Message)

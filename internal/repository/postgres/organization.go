@@ -54,10 +54,10 @@ func (r *OrganizationRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Or
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	query := `SELECT id, name, owner_user_id, status, created_at, updated_at FROM organizations WHERE id = $1`
+	query := `SELECT id, name, owner_user_id, status, trial_ends_at, subscription_id, created_at, updated_at FROM organizations WHERE id = $1`
 
 	org := &model.Organization{}
-	err := r.db.pool.QueryRow(ctx, query, id).Scan(&org.ID, &org.Name, &org.OwnerUserID, &org.Status, &org.CreatedAt, &org.UpdatedAt)
+	err := r.db.pool.QueryRow(ctx, query, id).Scan(&org.ID, &org.Name, &org.OwnerUserID, &org.Status, &org.TrialEndsAt, &org.SubscriptionID, &org.CreatedAt, &org.UpdatedAt)
 	return org, err
 }
 
@@ -66,7 +66,7 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 	defer cancel()
 
 	query := `
-		SELECT o.id, o.name, o.owner_user_id, o.status, o.created_at, o.updated_at 
+		SELECT o.id, o.name, o.owner_user_id, o.status, o.country, o.currency, o.trial_ends_at, o.subscription_id, o.created_at, o.updated_at 
 		FROM organizations o
 		JOIN org_memberships m ON o.id = m.org_id
 		WHERE m.user_id = $1 AND m.is_active = true`
@@ -80,7 +80,7 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 	var orgs []*model.Organization
 	for rows.Next() {
 		org := &model.Organization{}
-		if err := rows.Scan(&org.ID, &org.Name, &org.OwnerUserID, &org.Status, &org.CreatedAt, &org.UpdatedAt); err != nil {
+		if err := rows.Scan(&org.ID, &org.Name, &org.OwnerUserID, &org.Status, &org.Country, &org.Currency, &org.TrialEndsAt, &org.SubscriptionID, &org.CreatedAt, &org.UpdatedAt); err != nil {
 			return nil, err
 		}
 		orgs = append(orgs, org)
@@ -98,9 +98,9 @@ func (r *OrganizationRepo) Update(ctx context.Context, org *model.Organization) 
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	query := `UPDATE organizations SET name = $2, status = $3, updated_at = $4 WHERE id = $1`
+	query := `UPDATE organizations SET name = $2, status = $3, trial_ends_at = $4, subscription_id = $5, updated_at = $6 WHERE id = $1`
 
 	org.UpdatedAt = time.Now()
-	_, err := r.db.pool.Exec(ctx, query, org.ID, org.Name, org.Status, org.UpdatedAt)
+	_, err := r.db.pool.Exec(ctx, query, org.ID, org.Name, org.Status, org.TrialEndsAt, org.SubscriptionID, org.UpdatedAt)
 	return err
 }

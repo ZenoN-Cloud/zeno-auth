@@ -13,6 +13,7 @@ import (
 	"github.com/ZenoN-Cloud/zeno-auth/internal/bootstrap"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/handler"
+	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
 )
 
 type App struct {
@@ -50,7 +51,7 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("failed to build container: %w", err)
 	}
 
-	// Setup router
+	// Setup main router
 	router := handler.SetupRouter(
 		container.AuthService,
 		container.UserService,
@@ -70,6 +71,12 @@ func New() (*App, error) {
 	if router == nil {
 		return nil, fmt.Errorf("router setup failed: nil router returned")
 	}
+
+	// Setup internal router for billing integration
+	orgRepoImpl := postgres.NewOrganizationRepo(container.DB)
+	internalRouter := handler.SetupInternalRouter(orgRepoImpl, log.Logger)
+	// Mount internal routes
+	router.Any("/internal/*path", gin.WrapH(internalRouter))
 
 	if container.Config.Server.Port == "" {
 		return nil, fmt.Errorf("invalid configuration: PORT must not be empty")

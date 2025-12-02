@@ -56,7 +56,7 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, email, password, fullName string) (*model.User, error) {
+func (s *AuthService) Register(ctx context.Context, email, password, fullName, organizationName string) (*model.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -101,11 +101,11 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName st
 		return nil, err
 	}
 
-	// Create default organization for user
+	// Create organization for user
 	org := &model.Organization{
-		Name:        fullName + "'s Organization",
+		Name:        organizationName,
 		OwnerUserID: user.ID,
-		Status:      "active",
+		Status:      "created",
 	}
 
 	if err := s.orgRepo.CreateTx(ctx, tx, org); err != nil {
