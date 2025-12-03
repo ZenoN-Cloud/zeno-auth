@@ -13,6 +13,9 @@ variables:
   SERVICE_NAME: "zeno-auth-dev"
   REPO_NAME: "zeno-auth"
   GO_VERSION: "1.25"
+  # GCP Project Numbers for Workload Identity
+  GCP_PROJECT_NUMBER: "899549698924"  # zeno-cy-dev-001
+  GCP_PROJECT_NUMBER_PROD: "YOUR_PROD_PROJECT_NUMBER"  # Replace with actual project number for zeno-cy-prod-001
 
 # Lint stage
 golangci-lint:
@@ -140,15 +143,18 @@ build-docker:
   image: google/cloud-sdk:alpine
   services:
     - docker:24-dind
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
-    - |
-      if [ -z "$GCP_SERVICE_ACCOUNT_KEY" ]; then
-        echo "⚠️  GCP_SERVICE_ACCOUNT_KEY not set, skipping build"
-        exit 0
-      fi
     - apk add --no-cache docker-cli
-    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
-    - gcloud auth activate-service-account --key-file gcp-key.json
+    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
+    - gcloud iam workload-identity-pools create-cred-config
+        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
+        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
+        --output-file=/tmp/gcp-cred-config.json
+        --credential-source-file=/tmp/gitlab_oidc_token.txt
+    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
     - gcloud config set project $PROJECT_ID
     - gcloud auth configure-docker $REGION-docker.pkg.dev
   script:
@@ -174,14 +180,17 @@ deploy:dev:
   image: google/cloud-sdk:alpine
   dependencies:
     - build-docker
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
-    - |
-      if [ -z "$GCP_SERVICE_ACCOUNT_KEY" ]; then
-        echo "⚠️  GCP_SERVICE_ACCOUNT_KEY not set, skipping deploy"
-        exit 0
-      fi
-    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
-    - gcloud auth activate-service-account --key-file gcp-key.json
+    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
+    - gcloud iam workload-identity-pools create-cred-config
+        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
+        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
+        --output-file=/tmp/gcp-cred-config.json
+        --credential-source-file=/tmp/gitlab_oidc_token.txt
+    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
     - gcloud config set project $PROJECT_ID
   script:
     - |
@@ -218,9 +227,17 @@ deploy:dev:
 stop:dev:
   stage: deploy
   image: google/cloud-sdk:alpine
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
-    - echo $GCP_SERVICE_ACCOUNT_KEY | base64 -d > gcp-key.json
-    - gcloud auth activate-service-account --key-file gcp-key.json
+    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
+    - gcloud iam workload-identity-pools create-cred-config
+        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
+        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
+        --output-file=/tmp/gcp-cred-config.json
+        --credential-source-file=/tmp/gitlab_oidc_token.txt
+    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
     - gcloud config set project $PROJECT_ID
   script:
     - gcloud run services delete $SERVICE_NAME --region=$REGION --quiet
@@ -239,9 +256,17 @@ deploy:prod:
   variables:
     SERVICE_NAME: "zeno-auth-prod"
     PROJECT_ID: "zeno-cy-prod-001"
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
-    - echo $GCP_SERVICE_ACCOUNT_KEY_PROD | base64 -d > gcp-key.json
-    - gcloud auth activate-service-account --key-file gcp-key.json
+    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
+    - gcloud iam workload-identity-pools create-cred-config
+        projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
+        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
+        --output-file=/tmp/gcp-cred-config.json
+        --credential-source-file=/tmp/gitlab_oidc_token.txt
+    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
     - gcloud config set project $PROJECT_ID
   script:
     - |
