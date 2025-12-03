@@ -13,6 +13,10 @@ variables:
   SERVICE_NAME: "zeno-auth-dev"
   REPO_NAME: "zeno-auth"
   GO_VERSION: "1.25"
+  # GCP Project Numbers for Workload Identity
+  # Get these from: gcloud projects describe PROJECT_ID --format="value(projectNumber)"
+  GCP_PROJECT_NUMBER: "YOUR_DEV_PROJECT_NUMBER"  # Replace with actual project number
+  GCP_PROJECT_NUMBER_PROD: "YOUR_PROD_PROJECT_NUMBER"  # Replace with actual project number
 
 # Lint stage
 golangci-lint:
