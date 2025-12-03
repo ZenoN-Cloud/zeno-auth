@@ -82,7 +82,7 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("invalid configuration: PORT must not be empty")
 	}
 
-	// Create HTTP server
+	// Create HTTP server with security hardening
 	server := &http.Server{
 		Addr:              ":" + container.Config.Server.Port,
 		Handler:           router,
@@ -90,6 +90,7 @@ func New() (*App, error) {
 		ReadHeaderTimeout: 10 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20, // 1 MB
 		ErrorLog:          stdLoggerAdapter(),
 	}
 

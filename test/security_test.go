@@ -158,7 +158,7 @@ func TestPasswordResetFlow(t *testing.T) {
 	}
 
 	// Simulate password reset
-	newPasswordHash := "$argon2id$v=19$m=65536,t=3,p=2$newpassword"
+	newPasswordHash := "$argon2id$v=19$m=65536,t=3,p=2$newpassword" // #nosec G101 - test hash
 	oldPasswordHash := user.PasswordHash
 	user.PasswordHash = newPasswordHash
 

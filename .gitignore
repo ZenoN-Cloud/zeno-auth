@@ -55,3 +55,11 @@ gitleaks*
 *-key.json
 *-key-base64.txt
 gcp-key.json
+# Build artifacts
+/auth
+/cleanup
+
+# Temporary files
+*.tmp
+*.bak
+*~

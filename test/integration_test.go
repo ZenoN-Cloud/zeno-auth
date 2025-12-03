@@ -124,7 +124,7 @@ func getBaseURL() string {
 	return "http://localhost:8080"
 }
 
-func isServerAvailable(t *testing.T, baseURL string) bool {
+func isServerAvailable(_ *testing.T, baseURL string) bool {
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(baseURL + "/health")
 	if err != nil {

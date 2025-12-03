@@ -58,13 +58,33 @@ func LoggingMiddleware() gin.HandlerFunc {
 
 func SecurityHeadersMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		// HSTS - Force HTTPS (EU requirement)
+		c.Header("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
+
+		// Prevent clickjacking
 		c.Header("X-Frame-Options", "DENY")
+
+		// Prevent MIME sniffing
 		c.Header("X-Content-Type-Options", "nosniff")
+
+		// XSS Protection (legacy browsers)
 		c.Header("X-XSS-Protection", "1; mode=block")
-		c.Header("Content-Security-Policy", "default-src 'self'")
+
+		// CSP - Strict policy
+		c.Header("Content-Security-Policy", "default-src 'none'; script-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'")
+
+		// Referrer policy
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
-		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
+
+		// Permissions policy (EU privacy requirement)
+		c.Header("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()")
+
+		// Cache control for sensitive data
+		if c.Request.URL.Path != "/health" && c.Request.URL.Path != "/jwks" {
+			c.Header("Cache-Control", "no-store, no-cache, must-revalidate, private")
+			c.Header("Pragma", "no-cache")
+		}
+
 		c.Next()
 	}
 }

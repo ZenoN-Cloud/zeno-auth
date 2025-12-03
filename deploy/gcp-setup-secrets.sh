@@ -112,7 +112,8 @@ else
     if [ -n "$DATABASE_URL" ]; then
         echo -n "$DATABASE_URL" | gcloud secrets create zeno-auth-database-url \
             --data-file=- \
-            --replication-policy="automatic"
+            --replication-policy="user-managed" \
+            --locations="europe-west3,europe-west1"
         echo -e "${GREEN}✅ DATABASE_URL secret created${NC}"
     else
         echo -e "${YELLOW}⚠️  Skipped. You'll need to create it manually before deployment.${NC}"
@@ -145,11 +146,13 @@ else
         # Create secrets
         gcloud secrets create zeno-auth-jwt-private-key \
             --data-file="$TEMP_PRIVATE" \
-            --replication-policy="automatic"
+            --replication-policy="user-managed" \
+            --locations="europe-west3,europe-west1"
         
         gcloud secrets create zeno-auth-jwt-public-key \
             --data-file="$TEMP_PUBLIC" \
-            --replication-policy="automatic"
+            --replication-policy="user-managed" \
+            --locations="europe-west3,europe-west1"
         
         echo -e "${GREEN}✅ JWT keys generated and stored${NC}"
         echo ""

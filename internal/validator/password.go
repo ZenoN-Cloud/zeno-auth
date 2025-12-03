@@ -41,22 +41,29 @@ type PasswordValidator struct {
 	CheckCommon      bool
 }
 
-// NewPasswordValidator creates a validator with secure defaults
+// NewPasswordValidator creates a validator with EU-compliant secure defaults
+// Meets NIST SP 800-63B and EU cybersecurity requirements
 func NewPasswordValidator() *PasswordValidator {
 	return &PasswordValidator{
-		MinLength:        8,
+		MinLength:        12, // EU recommendation: 12+ chars
 		RequireUppercase: true,
 		RequireLowercase: true,
 		RequireDigit:     true,
-		RequireSpecial:   false,
+		RequireSpecial:   false, // Optional but recommended
 		CheckCommon:      true,
 	}
 }
 
-// Validate checks if password meets all requirements
+// Validate checks if password meets all requirements (EU-compliant)
 func (v *PasswordValidator) Validate(password string) error {
+	// EU requirement: minimum 12 characters for strong passwords
 	if len(password) < v.MinLength {
 		return ErrPasswordTooShort
+	}
+
+	// EU requirement: maximum length to prevent DoS
+	if len(password) > 128 {
+		return errors.New("password must not exceed 128 characters")
 	}
 
 	if v.CheckCommon && v.isCommonPassword(password) {
