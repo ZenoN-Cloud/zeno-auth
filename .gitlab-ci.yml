@@ -258,11 +258,11 @@ deploy:prod:
     PROJECT_ID: "zeno-cy-prod-001"
   id_tokens:
     GITLAB_OIDC_TOKEN:
-      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
+      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
     - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
     - gcloud iam workload-identity-pools create-cred-config
-        projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
+        projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
         --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
         --output-file=/tmp/gcp-cred-config.json
         --credential-source-file=/tmp/gitlab_oidc_token.txt
