@@ -46,10 +46,20 @@ func SetupRouter(
 	r.Use(LoggingMiddleware())
 	r.Use(SecurityHeadersMiddleware())
 
+	// ENV
+	env := ""
+	if cfg != nil {
+		env = strings.ToLower(cfg.GetEnv())
+	}
+
 	// CORS
 	var corsOrigins []string
 	if cfg != nil {
 		corsOrigins = cfg.GetCORSOrigins()
+	}
+	// Add localhost for development testing
+	if env != "production" && env != "prod" {
+		corsOrigins = append(corsOrigins, "http://localhost:3000", "http://localhost:8000", "http://127.0.0.1:3000", "http://127.0.0.1:8000")
 	}
 	r.Use(CORSMiddleware(corsOrigins))
 
@@ -62,12 +72,6 @@ func SetupRouter(
 		healthChecker := NewHealthChecker(db.Pool())
 		r.GET("/health/ready", healthChecker.HealthReady)
 		r.GET("/health/live", healthChecker.HealthLive)
-	}
-
-	// ENV
-	env := ""
-	if cfg != nil {
-		env = strings.ToLower(cfg.GetEnv())
 	}
 
 	// Debug endpoint - disabled in prod/prodution (и сам handler доп. проверяет ENV)

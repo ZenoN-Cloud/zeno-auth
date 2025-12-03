@@ -87,7 +87,7 @@ services:
       app:
         condition: service_healthy
     environment:
-      TEST_BASE_URL: http://app:8080
+      TEST_BASE_URL: https://app:8080
 
 volumes:
   postgres_test_data:

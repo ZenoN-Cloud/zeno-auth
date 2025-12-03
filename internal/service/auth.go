@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/rs/zerolog/log"
 
 	appErrors "github.com/ZenoN-Cloud/zeno-auth/internal/errors"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
@@ -87,17 +88,23 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		if r := recover(); r != nil {
+			_ = tx.Rollback()
+			panic(r)
+		}
+	}()
 
 	user := &model.User{
 		Email:        email,
 		PasswordHash: passwordHash,
 		FullName:     fullName,
-		IsActive:     true,
+		IsActive:     false, // User must verify email first
 	}
 
 	// Create user
 	if err := s.userRepo.CreateTx(ctx, tx, user); err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 
@@ -109,6 +116,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	}
 
 	if err := s.orgRepo.CreateTx(ctx, tx, org); err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 
@@ -121,6 +129,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	}
 
 	if err := s.membershipRepo.CreateTx(ctx, tx, membership); err != nil {
+		_ = tx.Rollback()
 		return nil, err
 	}
 
@@ -185,11 +194,14 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	// Get user's organizations
 	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
 	if err != nil {
+		// Log detailed error for debugging
+		log.Error().Err(err).Str("user_id", user.ID.String()).Msg("Failed to get user organizations")
 		return "", "", err
 	}
 
 	// User must have at least one organization
 	if len(orgs) == 0 {
+		log.Error().Str("user_id", user.ID.String()).Msg("User has no organizations")
 		return "", "", appErrors.ErrInvalidCredentials
 	}
 

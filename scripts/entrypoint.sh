@@ -17,20 +17,25 @@ if [ -n "${DATABASE_URL}" ]; then
   RETRIES=30
   SLEEP=3
 
-  for i in $(seq 1 $RETRIES); do
-    if migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
-      echo "Database is reachable!"
-      break
+  # For Cloud SQL Proxy, skip availability check and go straight to migrations
+  if echo "${DATABASE_URL}" | grep -q "/cloudsql/"; then
+    echo "Cloud SQL Proxy detected, skipping availability check"
+  else
+    for i in $(seq 1 $RETRIES); do
+      if migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
+        echo "Database is reachable!"
+        break
+      fi
+
+      echo "Attempt ${i}/${RETRIES}... database not ready yet"
+      sleep $SLEEP
+    done
+
+    # Check after final attempt
+    if ! migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
+      echo "ERROR: Database is still unreachable after ${RETRIES} attempts"
+      exit 1
     fi
-
-    echo "Attempt ${i}/${RETRIES}... database not ready yet"
-    sleep $SLEEP
-  done
-
-  # Check after final attempt
-  if ! migrate -path ./migrations -database "${DATABASE_URL}" version 2>&1 | grep -qE "(no migration|^[0-9])"; then
-    echo "ERROR: Database is still unreachable after ${RETRIES} attempts"
-    exit 1
   fi
 else
   echo "WARNING: DATABASE_URL not set — skipping DB wait"

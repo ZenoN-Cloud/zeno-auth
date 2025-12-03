@@ -65,6 +65,7 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	// First try: get organizations through membership
 	query := `
 		SELECT o.id, o.name, o.owner_user_id, o.status, o.country, o.currency, o.trial_ends_at, o.subscription_id, o.created_at, o.updated_at 
 		FROM organizations o
@@ -88,6 +89,32 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	// If no organizations found through membership, try direct ownership
+	if len(orgs) == 0 {
+		ownerQuery := `
+			SELECT id, name, owner_user_id, status, country, currency, trial_ends_at, subscription_id, created_at, updated_at 
+			FROM organizations 
+			WHERE owner_user_id = $1`
+
+		ownerRows, err := r.db.pool.Query(ctx, ownerQuery, userID)
+		if err != nil {
+			return nil, err
+		}
+		defer ownerRows.Close()
+
+		for ownerRows.Next() {
+			org := &model.Organization{}
+			if err := ownerRows.Scan(&org.ID, &org.Name, &org.OwnerUserID, &org.Status, &org.Country, &org.Currency, &org.TrialEndsAt, &org.SubscriptionID, &org.CreatedAt, &org.UpdatedAt); err != nil {
+				return nil, err
+			}
+			orgs = append(orgs, org)
+		}
+
+		if err := ownerRows.Err(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Return empty slice if no organizations found (not an error)
