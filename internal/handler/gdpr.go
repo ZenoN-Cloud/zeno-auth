@@ -2,20 +2,16 @@ package handler
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
 	apperrors "github.com/ZenoN-Cloud/zeno-auth/internal/errors"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/response"
 )
-
-func sanitizeLog(s string) string {
-	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), "\r", "")
-}
 
 type GDPRService interface {
 	ExportUserData(ctx context.Context, userID uuid.UUID) (interface{}, error)
@@ -64,14 +60,14 @@ func (h *GDPRHandler) ExportData(c *gin.Context) {
 		clientIP := strings.ReplaceAll(strings.ReplaceAll(c.ClientIP(), "\n", ""), "\r", "")
 		userAgent := strings.ReplaceAll(strings.ReplaceAll(c.Request.UserAgent(), "\n", ""), "\r", "")
 		if err := h.auditService.Log(c.Request.Context(), &uid, "data_exported", nil, clientIP, userAgent); err != nil {
-			log.Printf("Failed to log audit event: %s", sanitizeLog(err.Error()))
+			log.Error().Err(err).Msg("Failed to log audit event")
 		}
 	}
 
 	if h.emailService != nil {
 		go func() {
 			if err := h.emailService.SendDataExportNotification(c.Request.Context(), uid); err != nil {
-				log.Printf("Failed to send data export notification: %s", sanitizeLog(err.Error()))
+				log.Error().Err(err).Msg("Failed to send data export notification")
 			}
 		}()
 	}
@@ -101,14 +97,14 @@ func (h *GDPRHandler) DeleteAccount(c *gin.Context) {
 		clientIP := strings.ReplaceAll(strings.ReplaceAll(c.ClientIP(), "\n", ""), "\r", "")
 		userAgent := strings.ReplaceAll(strings.ReplaceAll(c.Request.UserAgent(), "\n", ""), "\r", "")
 		if err := h.auditService.Log(c.Request.Context(), &uid, "account_deleted", nil, clientIP, userAgent); err != nil {
-			log.Printf("Failed to log audit event: %s", sanitizeLog(err.Error()))
+			log.Error().Err(err).Msg("Failed to log audit event")
 		}
 	}
 
 	if h.emailService != nil {
 		go func() {
 			if err := h.emailService.SendAccountDeletionNotification(c.Request.Context(), uid); err != nil {
-				log.Printf("Failed to send account deletion notification: %s", sanitizeLog(err.Error()))
+				log.Error().Err(err).Msg("Failed to send account deletion notification")
 			}
 		}()
 	}

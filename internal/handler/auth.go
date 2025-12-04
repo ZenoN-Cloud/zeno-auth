@@ -98,7 +98,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		// Audit log failed login
 		if h.auditService != nil {
-			_ = h.auditService.Log(c.Request.Context(), nil, "login_failed", map[string]interface{}{"email": req.Email, "reason": err.Error()}, ipAddress, userAgent)
+			_ = h.auditService.Log(c.Request.Context(), nil, "login_failed", map[string]interface{}{"email": req.Email}, ipAddress, userAgent)
 		}
 		// Metrics
 		if h.metrics != nil {

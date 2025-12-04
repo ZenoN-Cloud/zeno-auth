@@ -48,7 +48,6 @@ func (h *HealthChecker) HealthReady(c *gin.Context) {
 		if err != nil {
 			checks["database"] = gin.H{
 				"status":  "fail",
-				"error":   err.Error(),
 				"latency": latency.Milliseconds(),
 			}
 			allHealthy = false

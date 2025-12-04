@@ -119,14 +119,14 @@ paths:
     post:
       tags: [Authentication]
       summary: Register new user
-      description: Creates a new user account
+      description: Creates a new user account with organization
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [email, password, full_name]
+              required: [email, password, full_name, organization_name]
               properties:
                 email:
                   type: string
@@ -147,6 +147,10 @@ paths:
                 full_name:
                   type: string
                   example: John Doe
+                organization_name:
+                  type: string
+                  description: Name of the organization (required for multi-tenant architecture)
+                  example: Acme Corp
       responses:
         '201':
           description: User created successfully
