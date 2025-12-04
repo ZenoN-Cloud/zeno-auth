@@ -22,12 +22,19 @@ echo -e "${YELLOW}📋 Setting up CI/CD variables...${NC}"
 
 # GCP Service Account Key (DEV)
 if [ -f "$HOME/.config/gcloud/zeno-cy-dev-sa.json" ]; then
-    GCP_KEY_DEV=$(base64 -i "$HOME/.config/gcloud/zeno-cy-dev-sa.json")
-    glab variable set GCP_SERVICE_ACCOUNT_KEY "$GCP_KEY_DEV" \
-        --scope=* --masked --project="$PROJECT_PATH"
+    if ! GCP_KEY_DEV=$(base64 -i "$HOME/.config/gcloud/zeno-cy-dev-sa.json"); then
+        echo -e "${RED}❌ Failed to encode GCP service account key${NC}"
+        exit 1
+    fi
+    if ! glab variable set GCP_SERVICE_ACCOUNT_KEY "$GCP_KEY_DEV" \
+        --scope=* --masked --project="$PROJECT_PATH"; then
+        echo -e "${RED}❌ Failed to set GCP_SERVICE_ACCOUNT_KEY variable${NC}"
+        exit 1
+    fi
     echo -e "${GREEN}✅ GCP_SERVICE_ACCOUNT_KEY set${NC}"
 else
     echo -e "${RED}❌ GCP service account key not found${NC}"
+    exit 1
 fi
 
 echo -e "${GREEN}✅ Setup complete!${NC}"

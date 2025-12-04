@@ -8,10 +8,26 @@ API_BASE="http://localhost:8080"
 ADMIN_EMAIL="admin@zeno.dev"
 ADMIN_PASSWORD="AdminPass123!"
 
+# Validate required variables
+if [ -z "$API_BASE" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASSWORD" ]; then
+    echo "❌ Required variables not set"
+    exit 1
+fi
+
+# Check required tools
+if ! command -v curl >/dev/null 2>&1; then
+    echo "❌ curl is required but not installed"
+    exit 1
+fi
+if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ jq is required but not installed"
+    exit 1
+fi
+
 echo "🌱 Seeding development data for Zeno Auth..."
 
 # Check if API is running
-if ! curl -s "$API_BASE/health" > /dev/null; then
+if ! curl -s "$API_BASE/health" > /dev/null 2>&1; then
     echo "❌ API is not running at $API_BASE"
     echo "Please start the service with: make local-up"
     exit 1

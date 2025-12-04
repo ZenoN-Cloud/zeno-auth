@@ -112,18 +112,19 @@ echo -e "${GREEN}✅ DATABASE_URL secret exists (version: $DB_SECRET_VERSION)${N
 
 # JWT_PRIVATE_KEY
 if ! gcloud secrets describe zeno-auth-jwt-private-key >/dev/null 2>&1; then
-    echo -e "${YELLOW}⚠️  Secret 'zeno-auth-jwt-private-key' not found${NC}"
-    echo "Recommended to create RSA key:"
+    echo -e "${RED}❌ Secret 'zeno-auth-jwt-private-key' not found${NC}"
+    echo "Create RSA key:"
     echo "  openssl genrsa 2048 | gcloud secrets create zeno-auth-jwt-private-key --data-file=-"
-else
-    JWT_SECRET_VERSION=$(gcloud secrets versions list zeno-auth-jwt-private-key \
-      --format="value(name)" --limit=1)
-    if [ -z "$JWT_SECRET_VERSION" ]; then
-        echo -e "${YELLOW}⚠️  No JWT_PRIVATE_KEY secret versions found${NC}"
-    else
-        echo -e "${GREEN}✅ JWT_PRIVATE_KEY secret exists (version: $JWT_SECRET_VERSION)${NC}"
-    fi
+    exit 1
 fi
+
+JWT_SECRET_VERSION=$(gcloud secrets versions list zeno-auth-jwt-private-key \
+  --format="value(name)" --limit=1 2>/dev/null)
+if [ -z "$JWT_SECRET_VERSION" ]; then
+    echo -e "${RED}❌ No JWT_PRIVATE_KEY secret versions found${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✅ JWT_PRIVATE_KEY secret exists (version: $JWT_SECRET_VERSION)${NC}"
 
 # SENDGRID_API_KEY (optional but used in deploy)
 if ! gcloud secrets describe zeno-auth-sendgrid-api-key >/dev/null 2>&1; then

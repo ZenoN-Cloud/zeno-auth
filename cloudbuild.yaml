@@ -1,34 +1,43 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'build'
     args: ['build', '-t', 'europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:$COMMIT_SHA', '-t', 'europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:latest', '.']
     
   # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-sha'
+    waitFor: ['build']
     args: ['push', 'europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:$COMMIT_SHA']
     
   - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-latest'
+    waitFor: ['build']
     args: ['push', 'europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:latest']
     
   # Deploy container image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    id: 'deploy'
+    waitFor: ['push-sha']
+    entrypoint: 'bash'
     args:
-      - 'run'
-      - 'deploy'
-      - 'zeno-auth-dev'
-      - '--image=europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:$COMMIT_SHA'
-      - '--region=europe-west3'
-      - '--platform=managed'
-      - '--allow-unauthenticated'
-      - '--port=8080'
-      - '--memory=512Mi'
-      - '--cpu=1'
-      - '--min-instances=0'
-      - '--max-instances=10'
-      - '--timeout=300'
-      - '--set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080,LOG_LEVEL=info,LOG_FORMAT=json'
-      - '--set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest'
+      - '-c'
+      - |
+        set -e
+        gcloud run deploy zeno-auth-dev \
+          --image=europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:$COMMIT_SHA \
+          --region=europe-west3 \
+          --platform=managed \
+          --allow-unauthenticated \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          --min-instances=0 \
+          --max-instances=10 \
+          --timeout=300 \
+          --set-env-vars=ENV=production,APP_NAME=zeno-auth,PORT=8080,LOG_LEVEL=info,LOG_FORMAT=json \
+          --set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest
+        echo "Deployment completed successfully"
 
 images:
   - 'europe-west3-docker.pkg.dev/$PROJECT_ID/zeno-auth/zeno-auth:$COMMIT_SHA'

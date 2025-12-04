@@ -208,9 +208,24 @@ paths:
               properties:
                 refresh_token:
                   type: string
+                  description: Valid refresh token
+                  example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
       responses:
         '200':
           description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    description: New JWT access token
+                    example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token:
+                    type: string
+                    description: New refresh token
+                    example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
         '401':
           description: Invalid refresh token
 
@@ -345,11 +360,15 @@ paths:
                   minLength: 8
       responses:
         '200':
-          description: Password changed
+          description: Password changed successfully
         '400':
-          description: Invalid input
+          description: Invalid current password
         '401':
           description: Unauthorized
+        '422':
+          description: Validation error
+        '500':
+          description: Internal server error
 
   /v1/me/data-export:
     get:
@@ -400,6 +419,8 @@ paths:
           description: Sessions revoked
         '401':
           description: Unauthorized
+        '500':
+          description: Internal server error
 
   /v1/me/sessions/{id}:
     delete:
@@ -418,10 +439,14 @@ paths:
       responses:
         '200':
           description: Session revoked
+        '400':
+          description: Invalid session ID format
         '401':
           description: Unauthorized
         '404':
           description: Session not found
+        '500':
+          description: Internal server error
 
   /v1/me/consents:
     get:
@@ -457,8 +482,12 @@ paths:
       responses:
         '200':
           description: Consent granted
+        '400':
+          description: Invalid consent type or version
         '401':
           description: Unauthorized
+        '500':
+          description: Internal server error
 
   /admin/compliance/report:
     get:
@@ -647,4 +676,6 @@ components:
           format: date-time
           nullable: true
 
+# Global security: empty array means no default security requirement
+# Individual endpoints override this with their own security requirements
 security: []

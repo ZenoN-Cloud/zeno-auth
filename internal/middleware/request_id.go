@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ const RequestIDKey contextKey = "request_id"
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
-		if requestID == "" {
+		if requestID == "" || strings.ContainsAny(requestID, "\r\n") {
 			requestID = uuid.New().String()
 		}
 

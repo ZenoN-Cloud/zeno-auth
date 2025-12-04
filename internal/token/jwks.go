@@ -3,7 +3,13 @@ package token
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"math/big"
+)
+
+var (
+	ErrPublicKeyNotSet = errors.New("public key not set")
+	ErrNilBigInt       = errors.New("big.Int cannot be nil")
 )
 
 type JWK struct {
@@ -25,6 +31,10 @@ func (j *JWTManager) GetJWKS(ctx context.Context) (*JWKS, error) {
 	default:
 	}
 
+	if j.publicKey == nil || j.publicKey.N == nil {
+		return nil, ErrPublicKeyNotSet
+	}
+
 	return &JWKS{
 		Keys: []JWK{
 			{
@@ -39,5 +49,8 @@ func (j *JWTManager) GetJWKS(ctx context.Context) (*JWKS, error) {
 }
 
 func (j *JWTManager) encodeBase64BigInt(n *big.Int) string {
+	if n == nil {
+		return ""
+	}
 	return base64.RawURLEncoding.EncodeToString(n.Bytes())
 }

@@ -36,7 +36,7 @@ func SetupLogger(cfg *Config) error {
 	// File logging (only non-production and when not in containerized environment)
 	// Skip file logging if running in Cloud Run or similar container platforms
 	if env != "production" && env != "prod" && cfg.Log.File != "" && os.Getenv("K_SERVICE") == "" {
-		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0o700); err != nil {
+		if err := os.MkdirAll(filepath.Dir(cfg.Log.File), 0o750); err != nil {
 			log.Warn().Err(err).Msg("Failed to create log directory, skipping file logging")
 		} else {
 			file, err := os.OpenFile(cfg.Log.File, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)

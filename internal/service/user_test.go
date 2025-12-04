@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,13 +36,13 @@ func TestUserService_ValidateEmail(t *testing.T) {
 
 func validateEmailFormat(email string) error {
 	if email == "" {
-		return assert.AnError
+		return errors.New("email cannot be empty")
 	}
 	if len(email) < 3 || !contains(email, "@") || !contains(email, ".") {
-		return assert.AnError
+		return errors.New("invalid email format")
 	}
 	if contains(email, " ") {
-		return assert.AnError
+		return errors.New("email cannot contain spaces")
 	}
 	return nil
 }

@@ -12,13 +12,17 @@ echo ""
 
 # 1. Register user
 echo "1️⃣  Registering user..."
-REGISTER_RESPONSE=$(curl -s -X POST "$API_URL/auth/register" \
+if ! REGISTER_RESPONSE=$(curl -s -X POST "$API_URL/auth/register" \
   -H "Content-Type: application/json" \
   -d "{
     \"email\": \"$EMAIL\",
     \"password\": \"$PASSWORD\",
     \"full_name\": \"Consent Test User\"
-  }")
+  }" 2>/dev/null); then
+  echo "❌ Failed to connect to API server at $API_URL"
+  echo "Please check if the server is running"
+  exit 1
+fi
 
 echo "Response: $REGISTER_RESPONSE"
 echo ""
@@ -32,11 +36,12 @@ LOGIN_RESPONSE=$(curl -s -X POST "$API_URL/auth/login" \
     \"password\": \"$PASSWORD\"
   }")
 
-ACCESS_TOKEN=$(echo $LOGIN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+ACCESS_TOKEN=$(echo $LOGIN_RESPONSE | grep -o '"access_token":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "")
 
 if [ -z "$ACCESS_TOKEN" ]; then
   echo "❌ Failed to get access token"
   echo "Response: $LOGIN_RESPONSE"
+  echo "Please check if the server is running and the credentials are correct"
   exit 1
 fi
 

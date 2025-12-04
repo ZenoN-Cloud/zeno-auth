@@ -50,6 +50,10 @@ type UserDataExport struct {
 }
 
 func (s *GDPRService) ExportUserData(ctx context.Context, userID uuid.UUID) (interface{}, error) {
+	if userID == uuid.Nil {
+		return nil, fmt.Errorf("invalid user ID")
+	}
+
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user: %w", err)
@@ -75,6 +79,10 @@ func (s *GDPRService) ExportUserData(ctx context.Context, userID uuid.UUID) (int
 		return nil, fmt.Errorf("failed to get audit logs: %w", err)
 	}
 
+	if user == nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
 	export := &UserDataExport{
 		User:          user,
 		Organizations: orgs,
@@ -86,6 +94,10 @@ func (s *GDPRService) ExportUserData(ctx context.Context, userID uuid.UUID) (int
 }
 
 func (s *GDPRService) DeleteUserAccount(ctx context.Context, userID uuid.UUID) error {
+	if s.db == nil {
+		return fmt.Errorf("database connection not available")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
@@ -94,12 +106,17 @@ func (s *GDPRService) DeleteUserAccount(ctx context.Context, userID uuid.UUID) e
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() {
+		_ = tx.Rollback(ctx) // Ignore rollback error in defer
+	}()
 
 	// Get user first
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found")
 	}
 
 	// Revoke all refresh tokens
@@ -118,7 +135,7 @@ func (s *GDPRService) DeleteUserAccount(ctx context.Context, userID uuid.UUID) e
 	}
 
 	// Commit transaction
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 

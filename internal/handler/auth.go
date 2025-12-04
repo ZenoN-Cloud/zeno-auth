@@ -157,7 +157,13 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
+	userIDString, ok := userID.(string)
+	if !ok {
+		response.BadRequest(c, "Invalid user ID format")
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDString)
 	if err != nil {
 		response.BadRequest(c, "Invalid user ID")
 		return
@@ -182,7 +188,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 		Token string `json:"token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request format"})
 		return
 	}
 
@@ -195,7 +201,7 @@ func (h *AuthHandler) VerifyEmail(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 
 	if err := h.emailService.VerifyEmail(c.Request.Context(), req.Token, ipAddress, userAgent); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid or expired token"})
 		return
 	}
 
@@ -209,7 +215,13 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 		return
 	}
 
-	userUUID, err := uuid.Parse(userID.(string))
+	userIDString, ok := userID.(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID format"})
+		return
+	}
+
+	userUUID, err := uuid.Parse(userIDString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID"})
 		return
@@ -220,7 +232,7 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 		return
 	}
 
-	token, err := h.emailService.ResendVerification(c.Request.Context(), userUUID)
+	_, err = h.emailService.ResendVerification(c.Request.Context(), userUUID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to resend verification"})
 		return
@@ -228,7 +240,6 @@ func (h *AuthHandler) ResendVerification(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Verification email sent",
-		"token":   token,
 	})
 }
 
@@ -237,7 +248,7 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		Email string `json:"email" binding:"required,email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request format"})
 		return
 	}
 
@@ -249,18 +260,13 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	token, err := h.passwordResetSvc.RequestPasswordReset(c.Request.Context(), req.Email, ipAddress, userAgent)
+	_, err := h.passwordResetSvc.RequestPasswordReset(c.Request.Context(), req.Email, ipAddress, userAgent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to process request"})
 		return
 	}
 
-	response := gin.H{"message": "If the email exists, a password reset link has been sent"}
-	if token != "" {
-		// In development, return token for testing
-		response["token"] = token
-	}
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{"message": "If the email exists, a password reset link has been sent"})
 }
 
 func (h *AuthHandler) ResetPassword(c *gin.Context) {
@@ -269,7 +275,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 		NewPassword string `json:"new_password" binding:"required,min=8"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid request format"})
 		return
 	}
 
@@ -282,7 +288,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 
 	if err := h.passwordResetSvc.ResetPassword(c.Request.Context(), req.Token, req.NewPassword, ipAddress, userAgent); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid or expired reset token"})
 		return
 	}
 

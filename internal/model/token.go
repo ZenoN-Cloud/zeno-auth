@@ -1,9 +1,17 @@
 package model
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrInvalidUserID = errors.New("invalid user ID")
+	ErrInvalidOrgID  = errors.New("invalid org ID")
+	ErrInvalidToken  = errors.New("invalid token")
+	ErrTokenExpired  = errors.New("token expired")
 )
 
 type RefreshToken struct {
@@ -17,4 +25,20 @@ type RefreshToken struct {
 	CreatedAt       time.Time  `json:"created_at" db:"created_at"`
 	ExpiresAt       time.Time  `json:"expires_at" db:"expires_at"`
 	RevokedAt       *time.Time `json:"revoked_at" db:"revoked_at"`
+}
+
+func (rt *RefreshToken) Validate() error {
+	if rt.UserID == uuid.Nil {
+		return ErrInvalidUserID
+	}
+	if rt.OrgID == uuid.Nil {
+		return ErrInvalidOrgID
+	}
+	if rt.TokenHash == "" {
+		return ErrInvalidToken
+	}
+	if rt.ExpiresAt.Before(time.Now()) {
+		return ErrTokenExpired
+	}
+	return nil
 }

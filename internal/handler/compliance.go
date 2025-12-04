@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -26,6 +27,21 @@ func NewComplianceHandler(reporter ComplianceReporter) *ComplianceHandler {
 	}
 }
 
+// isValidDateString validates date string format to prevent XSS
+func isValidDateString(date string) bool {
+	matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, date)
+	return matched
+}
+
+// isValidDateRange validates date is within reasonable range to prevent XSS
+func isValidDateRange(t time.Time) bool {
+	now := time.Now()
+	// Allow dates from 10 years ago to 1 year in future
+	minDate := now.AddDate(-10, 0, 0)
+	maxDate := now.AddDate(1, 0, 0)
+	return t.After(minDate) && t.Before(maxDate)
+}
+
 // GetComplianceReport returns GDPR compliance report
 func (h *ComplianceHandler) GetComplianceReport(c *gin.Context) {
 	// Only admins should access this
@@ -37,22 +53,32 @@ func (h *ComplianceHandler) GetComplianceReport(c *gin.Context) {
 
 	// Parse query params if provided
 	if start := c.Query("start_date"); start != "" {
-		if t, err := time.Parse("2006-01-02", start); err == nil {
-			startDate = t
+		// Validate date format to prevent XSS
+		if len(start) == 10 && isValidDateString(start) {
+			if t, err := time.Parse("2006-01-02", start); err == nil && isValidDateRange(t) {
+				startDate = t
+			}
 		}
 	}
 	if end := c.Query("end_date"); end != "" {
-		if t, err := time.Parse("2006-01-02", end); err == nil {
-			endDate = t
+		// Validate date format to prevent XSS
+		if len(end) == 10 && isValidDateString(end) {
+			if t, err := time.Parse("2006-01-02", end); err == nil && isValidDateRange(t) {
+				endDate = t
+			}
 		}
 	}
+
+	// Use only validated dates in response to prevent XSS
+	safeStartDate := startDate.Format("2006-01-02")
+	safeEndDate := endDate.Format("2006-01-02")
 
 	report := gin.H{
 		"report_id":    uuid.New().String(),
 		"generated_at": time.Now().UTC().Format(time.RFC3339),
 		"period": gin.H{
-			"start_date": startDate.Format("2006-01-02"),
-			"end_date":   endDate.Format("2006-01-02"),
+			"start_date": safeStartDate,
+			"end_date":   safeEndDate,
 		},
 		"gdpr_compliance": gin.H{
 			"data_export_requests":      0,

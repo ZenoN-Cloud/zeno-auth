@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
@@ -34,7 +34,7 @@ func (r *OrganizationRepo) Create(ctx context.Context, org *model.Organization) 
 	return r.db.pool.QueryRow(ctx, query, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID)
 }
 
-func (r *OrganizationRepo) CreateTx(ctx context.Context, tx *sql.Tx, org *model.Organization) error {
+func (r *OrganizationRepo) CreateTx(ctx context.Context, tx pgx.Tx, org *model.Organization) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -47,7 +47,7 @@ func (r *OrganizationRepo) CreateTx(ctx context.Context, tx *sql.Tx, org *model.
 	org.CreatedAt = now
 	org.UpdatedAt = now
 
-	return tx.QueryRowContext(ctx, query, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID)
+	return tx.QueryRow(ctx, query, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID)
 }
 
 func (r *OrganizationRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Organization, error) {

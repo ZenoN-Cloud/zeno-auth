@@ -8,6 +8,9 @@ type Config struct {
 }
 
 func NewConfig(cfg *config.Config) *Config {
+	if cfg == nil {
+		return &Config{}
+	}
 	return &Config{
 		AccessTokenTTL:  cfg.JWT.AccessTokenTTL,
 		RefreshTokenTTL: cfg.JWT.RefreshTokenTTL,

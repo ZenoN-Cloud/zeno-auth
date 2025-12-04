@@ -137,30 +137,51 @@ else
         echo "Generating RSA key pair..."
         
         # Generate private key
-        TEMP_PRIVATE=$(mktemp)
-        TEMP_PUBLIC=$(mktemp)
+        if ! TEMP_PRIVATE=$(mktemp); then
+            echo -e "${RED}❌ Failed to create temporary file for private key${NC}"
+            exit 1
+        fi
+        if ! TEMP_PUBLIC=$(mktemp); then
+            echo -e "${RED}❌ Failed to create temporary file for public key${NC}"
+            exit 1
+        fi
         
-        openssl genrsa -out "$TEMP_PRIVATE" 2048
-        openssl rsa -in "$TEMP_PRIVATE" -pubout -out "$TEMP_PUBLIC"
+        # Ensure cleanup on exit
+        trap 'rm -f "$TEMP_PRIVATE" "$TEMP_PUBLIC"' EXIT
+        
+        if ! openssl genrsa -out "$TEMP_PRIVATE" 2048 2>/dev/null; then
+            echo -e "${RED}❌ Failed to generate private key${NC}"
+            exit 1
+        fi
+        
+        if ! openssl rsa -in "$TEMP_PRIVATE" -pubout -out "$TEMP_PUBLIC" 2>/dev/null; then
+            echo -e "${RED}❌ Failed to generate public key${NC}"
+            exit 1
+        fi
         
         # Create secrets
-        gcloud secrets create zeno-auth-jwt-private-key \
+        if ! gcloud secrets create zeno-auth-jwt-private-key \
             --data-file="$TEMP_PRIVATE" \
             --replication-policy="user-managed" \
-            --locations="europe-west3,europe-west1"
+            --locations="europe-west3,europe-west1" 2>/dev/null; then
+            echo -e "${RED}❌ Failed to create JWT private key secret${NC}"
+            exit 1
+        fi
         
-        gcloud secrets create zeno-auth-jwt-public-key \
+        if ! gcloud secrets create zeno-auth-jwt-public-key \
             --data-file="$TEMP_PUBLIC" \
             --replication-policy="user-managed" \
-            --locations="europe-west3,europe-west1"
+            --locations="europe-west3,europe-west1" 2>/dev/null; then
+            echo -e "${RED}❌ Failed to create JWT public key secret${NC}"
+            exit 1
+        fi
         
         echo -e "${GREEN}✅ JWT keys generated and stored${NC}"
         echo ""
         echo "Public key (save this for verification):"
         cat "$TEMP_PUBLIC"
         
-        # Cleanup
-        rm -f "$TEMP_PRIVATE" "$TEMP_PUBLIC"
+        # Cleanup handled by trap
     else
         echo -e "${YELLOW}⚠️  Skipped. You'll need to create it manually before deployment.${NC}"
         echo "To create manually:"

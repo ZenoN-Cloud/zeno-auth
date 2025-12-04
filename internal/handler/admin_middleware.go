@@ -28,7 +28,7 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 			expectedUser := os.Getenv("ADMIN_USERNAME")
 			expectedPass := os.Getenv("ADMIN_PASSWORD")
 
-			if username == expectedUser && password == expectedPass && expectedUser != "" {
+			if username == expectedUser && password == expectedPass && expectedUser != "" && expectedPass != "" {
 				c.Next()
 				return
 			}

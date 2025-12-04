@@ -42,9 +42,14 @@ func (h *CleanupHandler) CleanupAll(c *gin.Context) {
 		"TRUNCATE TABLE users CASCADE",
 	}
 
+	if h.db == nil || h.db.Pool() == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "Database not available"})
+		return
+	}
+
 	for _, query := range queries {
 		if _, err := h.db.Pool().Exec(c.Request.Context(), query); err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Database operation failed"})
 			return
 		}
 	}
@@ -67,13 +72,13 @@ func (h *CleanupHandler) CleanupExpired(c *gin.Context) {
 
 	tokensDeleted, err := h.cleanupService.CleanupExpiredTokens(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Token cleanup failed"})
 		return
 	}
 
 	logsDeleted, err := h.cleanupService.CleanupOldAuditLogs(c.Request.Context(), 730)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Audit log cleanup failed"})
 		return
 	}
 

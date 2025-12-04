@@ -27,13 +27,24 @@ func NewUserHandler(userService service.UserServiceInterface, passwordService Pa
 }
 
 func (h *UserHandler) GetProfile(c *gin.Context) {
+	if h.userService == nil {
+		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "Service unavailable"})
+		return
+	}
+
 	userIDStr, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Unauthorized"})
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
+	userIDString, ok := userIDStr.(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID format"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID"})
 		return
@@ -54,8 +65,12 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 }
 
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password" binding:"required"`
-	NewPassword     string `json:"new_password" binding:"required,min=8"`
+	CurrentPassword string `json:"current_password" binding:"required" log:"-"`
+	NewPassword     string `json:"new_password" binding:"required,min=8" log:"-"`
+}
+
+func (r ChangePasswordRequest) MarshalJSON() ([]byte, error) {
+	return []byte(`{"current_password":"***","new_password":"***"}`), nil
 }
 
 func (h *UserHandler) ChangePassword(c *gin.Context) {
@@ -65,7 +80,13 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	userID, err := uuid.Parse(userIDStr.(string))
+	userIDString, ok := userIDStr.(string)
+	if !ok {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID format"})
+		return
+	}
+
+	userID, err := uuid.Parse(userIDString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid user ID"})
 		return
@@ -77,7 +98,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if h.passwordService == nil {
+	if h.passwordService == nil || h.userService == nil {
 		c.JSON(http.StatusServiceUnavailable, ErrorResponse{Error: "Service unavailable"})
 		return
 	}
@@ -86,7 +107,15 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 	userAgent := c.GetHeader("User-Agent")
 
 	if err := h.passwordService.ChangePassword(c.Request.Context(), userID, req.CurrentPassword, req.NewPassword, ipAddress, userAgent); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: err.Error()})
+		errMsg := err.Error()
+		switch errMsg {
+		case "invalid current password":
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Invalid current password"})
+		case "password too weak":
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "Password too weak"})
+		default:
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to change password"})
+		}
 		return
 	}
 

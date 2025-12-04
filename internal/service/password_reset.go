@@ -82,7 +82,9 @@ func (s *PasswordResetService) RequestPasswordReset(ctx context.Context, email, 
 
 	// Audit log
 	if s.auditService != nil {
-		_ = s.auditService.Log(ctx, &user.ID, "password_reset_requested", nil, ipAddress, userAgent)
+		if err := s.auditService.Log(ctx, &user.ID, "password_reset_requested", nil, ipAddress, userAgent); err != nil {
+			log.Error().Err(err).Str("user_id", user.ID.String()).Msg("Failed to log password reset request audit event")
+		}
 	}
 
 	// Send email
@@ -107,6 +109,9 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 	if err != nil {
 		return errors.ErrInvalidResetToken
 	}
+	if resetRecord == nil {
+		return errors.ErrInvalidResetToken
+	}
 
 	if resetRecord.UsedAt != nil {
 		return errors.ErrInvalidResetToken
@@ -120,9 +125,12 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 	if err != nil {
 		return fmt.Errorf("failed to get user: %w", err)
 	}
+	if user == nil {
+		return errors.ErrInvalidResetToken
+	}
 
 	// Hash new password
-	newHash, err := s.passwordManager.Hash(context.Background(), newPassword)
+	newHash, err := s.passwordManager.Hash(ctx, newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -145,7 +153,9 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 
 	// Audit log
 	if s.auditService != nil {
-		_ = s.auditService.Log(ctx, &user.ID, "password_reset_completed", nil, ipAddress, userAgent)
+		if err := s.auditService.Log(ctx, &user.ID, "password_reset_completed", nil, ipAddress, userAgent); err != nil {
+			log.Error().Err(err).Str("user_id", user.ID.String()).Msg("Failed to log password reset audit event")
+		}
 	}
 
 	return nil

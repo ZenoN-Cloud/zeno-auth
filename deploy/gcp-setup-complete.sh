@@ -149,9 +149,17 @@ else
     # Generate strong password
     DB_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
     
-    gcloud sql users create "$DB_USER" \
+    if [ -z "$DB_PASSWORD" ] || [ ${#DB_PASSWORD} -lt 16 ]; then
+        echo -e "${RED}❌ Failed to generate secure password${NC}"
+        exit 1
+    fi
+    
+    if ! gcloud sql users create "$DB_USER" \
         --instance="$INSTANCE_ID" \
-        --password="$DB_PASSWORD"
+        --password="$DB_PASSWORD" 2>/dev/null; then
+        echo -e "${RED}❌ Failed to create database user${NC}"
+        exit 1
+    fi
     
     echo -e "${GREEN}✅ Database user created${NC}"
     echo -e "${YELLOW}⚠️  IMPORTANT: Save this password securely!${NC}"
@@ -159,7 +167,10 @@ else
     echo ""
     
     # Save to temporary file
-    echo "$DB_PASSWORD" > /tmp/zeno-auth-db-password.txt
+    if ! echo "$DB_PASSWORD" > /tmp/zeno-auth-db-password.txt 2>/dev/null; then
+        echo -e "${RED}❌ Failed to save password to file${NC}"
+        exit 1
+    fi
     echo -e "${YELLOW}Password saved to: /tmp/zeno-auth-db-password.txt${NC}"
     echo ""
     
@@ -180,19 +191,42 @@ if gcloud secrets describe zeno-auth-database-url &>/dev/null; then
 else
     # Read password from file if it exists
     if [ -f /tmp/zeno-auth-db-password.txt ]; then
-        DB_PASSWORD=$(cat /tmp/zeno-auth-db-password.txt)
+        if ! DB_PASSWORD=$(cat /tmp/zeno-auth-db-password.txt 2>/dev/null); then
+            echo -e "${RED}❌ Failed to read password file${NC}"
+            exit 1
+        fi
+        if [ -z "$DB_PASSWORD" ]; then
+            echo -e "${RED}❌ Password file is empty${NC}"
+            exit 1
+        fi
     else
         echo -e "${YELLOW}Enter database password:${NC}"
         read -s DB_PASSWORD
         echo ""
+        if [ -z "$DB_PASSWORD" ]; then
+            echo -e "${RED}❌ Password cannot be empty${NC}"
+            exit 1
+        fi
     fi
     
     INSTANCE_CONNECTION_NAME="$PROJECT_ID:$REGION:$INSTANCE_ID"
+    if [ -z "$INSTANCE_CONNECTION_NAME" ] || [ "$INSTANCE_CONNECTION_NAME" = "::" ]; then
+        echo -e "${RED}❌ Failed to construct instance connection name${NC}"
+        exit 1
+    fi
     DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@/zeno_auth?host=/cloudsql/${INSTANCE_CONNECTION_NAME}&sslmode=disable"
     
-    echo -n "$DATABASE_URL" | gcloud secrets create zeno-auth-database-url \
+    if [ -z "$DATABASE_URL" ]; then
+        echo -e "${RED}❌ Failed to construct DATABASE_URL${NC}"
+        exit 1
+    fi
+    
+    if ! echo -n "$DATABASE_URL" | gcloud secrets create zeno-auth-database-url \
         --data-file=- \
-        --replication-policy=automatic
+        --replication-policy=automatic 2>/dev/null; then
+        echo -e "${RED}❌ Failed to create DATABASE_URL secret${NC}"
+        exit 1
+    fi
     
     echo -e "${GREEN}✅ DATABASE_URL secret created${NC}"
 fi
@@ -210,20 +244,49 @@ else
     
     # Generate keys in temp directory
     TEMP_DIR=$(mktemp -d)
-    openssl genrsa -out "$TEMP_DIR/jwt_private.pem" 2048
-    openssl rsa -in "$TEMP_DIR/jwt_private.pem" -pubout -out "$TEMP_DIR/jwt_public.pem"
+    if [ -z "$TEMP_DIR" ] || [ ! -d "$TEMP_DIR" ]; then
+        echo -e "${RED}❌ Failed to create temporary directory${NC}"
+        exit 1
+    fi
+    trap 'rm -rf "$TEMP_DIR"' EXIT
+    
+    if ! openssl genrsa -out "$TEMP_DIR/jwt_private.pem" 2048 2>/dev/null; then
+        echo -e "${RED}❌ Failed to generate RSA private key${NC}"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    
+    if [ ! -f "$TEMP_DIR/jwt_private.pem" ] || [ ! -s "$TEMP_DIR/jwt_private.pem" ]; then
+        echo -e "${RED}❌ Private key file is empty or missing${NC}"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    
+    if ! openssl rsa -in "$TEMP_DIR/jwt_private.pem" -pubout -out "$TEMP_DIR/jwt_public.pem" 2>/dev/null; then
+        echo -e "${RED}❌ Failed to generate RSA public key${NC}"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
+    
+    if [ ! -f "$TEMP_DIR/jwt_public.pem" ] || [ ! -s "$TEMP_DIR/jwt_public.pem" ]; then
+        echo -e "${RED}❌ Public key file is empty or missing${NC}"
+        rm -rf "$TEMP_DIR"
+        exit 1
+    fi
     
     # Create secret
-    cat "$TEMP_DIR/jwt_private.pem" | gcloud secrets create zeno-auth-jwt-private-key \
+    if ! cat "$TEMP_DIR/jwt_private.pem" | gcloud secrets create zeno-auth-jwt-private-key \
         --data-file=- \
-        --replication-policy=automatic
+        --replication-policy=automatic 2>/dev/null; then
+        echo -e "${RED}❌ Failed to create JWT private key secret${NC}"
+        exit 1
+    fi
     
     echo -e "${GREEN}✅ JWT private key secret created${NC}"
     echo -e "${YELLOW}Public key saved to: $TEMP_DIR/jwt_public.pem${NC}"
     echo -e "${YELLOW}(You can embed this in your app or store separately)${NC}"
     
-    # Cleanup
-    rm -f "$TEMP_DIR/jwt_private.pem"
+    # Cleanup handled by trap
 fi
 echo ""
 

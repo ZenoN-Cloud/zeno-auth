@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
@@ -34,7 +34,7 @@ func (r *MembershipRepo) Create(ctx context.Context, membership *model.OrgMember
 	).Scan(&membership.ID)
 }
 
-func (r *MembershipRepo) CreateTx(ctx context.Context, tx *sql.Tx, membership *model.OrgMembership) error {
+func (r *MembershipRepo) CreateTx(ctx context.Context, tx pgx.Tx, membership *model.OrgMembership) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -45,7 +45,7 @@ func (r *MembershipRepo) CreateTx(ctx context.Context, tx *sql.Tx, membership *m
 
 	membership.CreatedAt = time.Now()
 
-	return tx.QueryRowContext(
+	return tx.QueryRow(
 		ctx, query, membership.UserID, membership.OrgID, membership.Role, membership.IsActive, membership.CreatedAt,
 	).Scan(&membership.ID)
 }

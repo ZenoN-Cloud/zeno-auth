@@ -73,7 +73,7 @@ func (s *PasswordService) ChangePassword(
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Update password
 	user.PasswordHash = newHash
@@ -87,7 +87,7 @@ func (s *PasswordService) ChangePassword(
 	}
 
 	// Commit transaction
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -30,7 +31,12 @@ func AuthMiddleware(jwtManager *token.JWTManager) gin.HandlerFunc {
 
 		claims, err := jwtManager.Validate(c.Request.Context(), tokenString)
 		if err != nil {
-			log.Error().Err(err).Str("token_prefix", tokenString[:20]).Msg("Token validation failed")
+			// Safe token prefix logging
+			tokenPrefix := tokenString
+			if len(tokenString) > 20 {
+				tokenPrefix = tokenString[:20]
+			}
+			log.Error().Err(err).Str("token_prefix", tokenPrefix).Msg("Token validation failed")
 			c.JSON(http.StatusUnauthorized, ErrorResponse{Error: "Invalid token"})
 			c.Abort()
 			return
@@ -103,8 +109,11 @@ func CORSMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		}
 
 		if allowed {
-			c.Header("Access-Control-Allow-Origin", origin)
-			c.Header("Access-Control-Allow-Credentials", "true")
+			// Validate origin URL to prevent XSS
+			if _, err := url.Parse(origin); err == nil && !strings.ContainsAny(origin, "<>\"'") {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Access-Control-Allow-Credentials", "true")
+			}
 		} else if len(allowedOrigins) == 0 {
 			// Fallback for backward compatibility
 			c.Header("Access-Control-Allow-Origin", "*")
@@ -130,6 +139,89 @@ func MetricsMiddleware(m *metrics.Metrics) gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 		duration := time.Since(start)
-		m.RecordRequestDuration(duration)
+
+		// Safe metrics recording with error handling
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Dur("duration", duration).Msg("Metrics recording panic")
+			}
+		}()
+
+		if m != nil {
+			m.RecordRequestDuration(duration)
+		} else {
+			log.Warn().Dur("duration", duration).Msg("Metrics collector is nil, skipping recording")
+		}
+	}
+}
+
+// OriginCheckMiddleware validates Origin/Referer for CSRF protection on public endpoints
+func OriginCheckMiddleware(allowedOrigins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip for GET, HEAD, OPTIONS
+		if c.Request.Method == "GET" || c.Request.Method == "HEAD" || c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
+
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			origin = c.GetHeader("Referer")
+		}
+
+		if origin != "" {
+			originURL, err := url.Parse(origin)
+			if err != nil {
+				c.JSON(http.StatusForbidden, ErrorResponse{Error: "Invalid origin"})
+				c.Abort()
+				return
+			}
+
+			// Check if origin is in allowed list
+			allowed := false
+			for _, allowedOrigin := range allowedOrigins {
+				allowedURL, err := url.Parse(allowedOrigin)
+				if err == nil && originURL.Host == allowedURL.Host {
+					allowed = true
+					break
+				}
+			}
+
+			if !allowed {
+				c.JSON(http.StatusForbidden, ErrorResponse{Error: "Origin not allowed"})
+				c.Abort()
+				return
+			}
+		}
+
+		c.Next()
+	}
+}
+
+// CSRFMiddleware provides CSRF protection by validating X-CSRF-Token header and Origin
+func CSRFMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token := c.GetHeader("X-CSRF-Token")
+		if token == "" {
+			c.JSON(http.StatusForbidden, ErrorResponse{Error: "CSRF token required"})
+			c.Abort()
+			return
+		}
+
+		// Validate Origin or Referer for state-changing requests
+		origin := c.GetHeader("Origin")
+		if origin == "" {
+			origin = c.GetHeader("Referer")
+		}
+		if origin != "" {
+			originURL, err := url.Parse(origin)
+			if err != nil || originURL.Host != c.Request.Host {
+				c.JSON(http.StatusForbidden, ErrorResponse{Error: "Invalid origin"})
+				c.Abort()
+				return
+			}
+		}
+
+		c.Next()
 	}
 }

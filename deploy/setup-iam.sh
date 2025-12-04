@@ -3,7 +3,20 @@
 
 set -e
 
+# Check if gcloud is installed
+if ! command -v gcloud >/dev/null 2>&1; then
+    echo "❌ gcloud CLI is not installed"
+    echo "Please install Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
+    exit 1
+fi
+
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
+if [ -z "$PROJECT_ID" ]; then
+    echo "❌ No GCP project configured"
+    echo "Please run: gcloud config set project YOUR_PROJECT_ID"
+    exit 1
+fi
+
 SERVICE_ACCOUNT="zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "🔐 Setting up IAM for Zeno Auth"

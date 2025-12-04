@@ -22,7 +22,12 @@ func NewCleanupService(refreshTokenRepo RefreshTokenRepository, auditRepo AuditL
 func (s *CleanupService) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	log.Info().Msg("Starting cleanup of expired refresh tokens")
 
-	if err := s.refreshTokenRepo.DeleteExpired(ctx); err != nil {
+	if s.refreshTokenRepo == nil {
+		return 0, ErrRepositoryNotInitialized
+	}
+
+	err := s.refreshTokenRepo.DeleteExpired(ctx)
+	if err != nil {
 		log.Error().Err(err).Msg("Failed to cleanup expired tokens")
 		return 0, err
 	}

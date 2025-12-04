@@ -2,10 +2,10 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
@@ -36,7 +36,7 @@ func (r *UserRepo) Create(ctx context.Context, user *model.User) error {
 	).Scan(&user.ID)
 }
 
-func (r *UserRepo) CreateTx(ctx context.Context, tx *sql.Tx, user *model.User) error {
+func (r *UserRepo) CreateTx(ctx context.Context, tx pgx.Tx, user *model.User) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -49,7 +49,7 @@ func (r *UserRepo) CreateTx(ctx context.Context, tx *sql.Tx, user *model.User) e
 	user.CreatedAt = now
 	user.UpdatedAt = now
 
-	return tx.QueryRowContext(
+	return tx.QueryRow(
 		ctx, query, user.Email, user.PasswordHash, user.FullName, user.IsActive, user.CreatedAt, user.UpdatedAt,
 	).Scan(&user.ID)
 }
@@ -96,14 +96,14 @@ func (r *UserRepo) Update(ctx context.Context, user *model.User) error {
 	return err
 }
 
-func (r *UserRepo) UpdateTx(ctx context.Context, tx *sql.Tx, user *model.User) error {
+func (r *UserRepo) UpdateTx(ctx context.Context, tx pgx.Tx, user *model.User) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	query := `UPDATE users SET email = $2, password_hash = $3, full_name = $4, is_active = $5, failed_login_attempts = $6, locked_until = $7, updated_at = $8 WHERE id = $1`
 
 	user.UpdatedAt = time.Now()
-	_, err := tx.ExecContext(
+	_, err := tx.Exec(
 		ctx, query, user.ID, user.Email, user.PasswordHash, user.FullName, user.IsActive, user.FailedLoginAttempts,
 		user.LockedUntil, user.UpdatedAt,
 	)

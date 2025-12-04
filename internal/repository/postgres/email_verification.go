@@ -48,8 +48,14 @@ func (r *EmailVerificationRepository) GetByTokenHash(ctx context.Context, tokenH
 
 func (r *EmailVerificationRepository) MarkAsVerified(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE email_verifications SET verified_at = NOW() WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
-	return err
+	result, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return model.ErrEmailVerificationNotFound
+	}
+	return nil
 }
 
 func (r *EmailVerificationRepository) DeleteExpired(ctx context.Context) error {

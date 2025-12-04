@@ -11,6 +11,20 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+func sanitizeLog(s string) string {
+	replacer := strings.NewReplacer(
+		"\n", " ",
+		"\r", " ",
+		"\t", " ",
+		"\f", " ",
+		"\v", " ",
+		"\b", " ",
+		"\a", " ",
+		"\x00", " ",
+	)
+	return replacer.Replace(s)
+}
+
 type PasswordManager struct {
 	memory      uint32
 	iterations  uint32
@@ -67,15 +81,38 @@ func (p *PasswordManager) Verify(ctx context.Context, password, encodedHash stri
 }
 
 func (p *PasswordManager) generateSalt() ([]byte, error) {
+	if p.saltLength == 0 {
+		return nil, fmt.Errorf("salt length cannot be zero")
+	}
+
 	salt := make([]byte, p.saltLength)
-	_, err := rand.Read(salt)
-	return salt, err
+	n, err := rand.Read(salt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate random salt: %w", err)
+	}
+	if n != int(p.saltLength) {
+		return nil, fmt.Errorf("insufficient random bytes generated: got %d, expected %d", n, p.saltLength)
+	}
+
+	return salt, nil
 }
 
 func (p *PasswordManager) decodeHash(encodedHash string) (salt, hash []byte, err error) {
+	// Input validation
+	if encodedHash == "" {
+		return nil, nil, fmt.Errorf("empty hash string")
+	}
+
 	parts := strings.Split(encodedHash, "$")
 	if len(parts) != 6 || parts[0] != "" || parts[1] != "argon2id" {
-		return nil, nil, fmt.Errorf("invalid hash format")
+		return nil, nil, fmt.Errorf("invalid hash format: expected argon2id format")
+	}
+
+	// Validate parts are not empty
+	for i := 2; i < 6; i++ {
+		if parts[i] == "" {
+			return nil, nil, fmt.Errorf("invalid hash format: empty part at index %d", i)
+		}
 	}
 
 	// parts[2] is version (v=19)
@@ -85,12 +122,22 @@ func (p *PasswordManager) decodeHash(encodedHash string) (salt, hash []byte, err
 
 	salt, err = base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode salt: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode salt: %s", sanitizeLog(err.Error()))
+	}
+
+	// Validate salt length
+	if len(salt) == 0 {
+		return nil, nil, fmt.Errorf("decoded salt is empty")
 	}
 
 	hash, err = base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode hash: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode hash: %s", sanitizeLog(err.Error()))
+	}
+
+	// Validate hash length
+	if len(hash) == 0 {
+		return nil, nil, fmt.Errorf("decoded hash is empty")
 	}
 
 	return salt, hash, nil

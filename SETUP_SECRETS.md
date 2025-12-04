@@ -1,5 +1,7 @@
 # 🔐 Создание секретов в GCP (EU-compliant)
 
+> **⚠️ Предупреждение безопасности:** Никогда не используйте простые пароли в production. Всегда генерируйте случайные пароли и храните секреты безопасно.
+
 ## Шаг 1: Авторизация
 
 ```bash
@@ -14,7 +16,8 @@ gcloud config set compute/region europe-west3
 ## Шаг 2: Запуск скрипта
 
 ```bash
-cd /Users/maximviazov/Developer/Golang/zeno-cy/zeno-auth
+# Перейди в директорию проекта
+cd /path/to/your/zeno-auth
 ./create-secrets.sh
 ```
 
@@ -33,7 +36,8 @@ cd /Users/maximviazov/Developer/Golang/zeno-cy/zeno-auth
 ### 3. DATABASE_URL ⚠️
 - Нужно ввести вручную
 - Формат: `postgres://USER:PASSWORD@/DB_NAME?host=/cloudsql/INSTANCE_CONNECTION_NAME`
-- Пример: `postgres://zeno_auth:MyPass123@/zeno_auth?host=/cloudsql/zeno-cy-dev-001:europe-west3:zeno-auth-db-dev`
+- Пример: `postgres://${DB_USER}:${SECURE_PASSWORD}@/${DB_NAME}?host=/cloudsql/${PROJECT_ID}:${REGION}:${INSTANCE_NAME}`
+- Реальный пример: `postgres://zeno_auth:$(openssl rand -base64 32)@/zeno_auth?host=/cloudsql/zeno-cy-dev-001:europe-west3:zeno-auth-db-dev`
 
 ### 4. SENDGRID_API_KEY (опционально)
 - Для email уведомлений
@@ -61,6 +65,23 @@ gcloud secrets delete zeno-auth-jwt-private-key
 # Создать заново
 ./create-secrets.sh
 ```
+
+## 🔒 Рекомендации по безопасности
+
+### Генерация безопасных паролей:
+```bash
+# Генерация случайного пароля (32 символа)
+DB_PASSWORD=$(openssl rand -base64 32)
+echo "Generated password: $DB_PASSWORD"
+
+# Или с помощью pwgen
+pwgen -s 32 1
+```
+
+### Проверка силы пароля:
+- Минимум 16 символов для production
+- Смешанные символы: буквы, цифры, спецсимволы
+- Никаких словарных слов
 
 ## EU Compliance ✅
 

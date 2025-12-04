@@ -43,12 +43,12 @@ All passwords must meet the following criteria:
 
 ## Examples
 
-### ✅ Valid Passwords
+### ✅ Valid Password Patterns
 ```
-SecurePass123
-MyP@ssw0rd
-Welcome2024!
-Admin123Pass
+[Word][Word][Numbers]     # Example: SecurePass123
+[Word][@][Word][Digit]    # Example: MyP@ssw0rd  
+[Word][Year][Symbol]      # Example: Welcome2024!
+[Role][Numbers][Word]     # Example: Admin123Pass
 ```
 
 ### ❌ Invalid Passwords
@@ -152,19 +152,28 @@ PASSWORD_CHECK_COMMON=true
 
 ## Testing
 
+> **⚠️ Security Warning:** Never use hardcoded credentials in production code or documentation. Always use environment variables or secure configuration management.
+
 Test password validation:
 
 ```bash
 # Run password validator tests
 go test ./internal/validator -v -run TestPasswordValidator
 
+# Set up test environment variables
+export TEST_EMAIL="user@example.com"
+export TEST_WEAK_PASSWORD="weak"
+export TEST_USER_NAME="Test User"
+export TEST_ORG_NAME="Test Organization"
+
 # Test registration with weak password
 curl -X POST http://localhost:8080/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "test@example.com",
-    "password": "weak",
-    "full_name": "Test User"
+    "email": "'${TEST_EMAIL}'",
+    "password": "'${TEST_WEAK_PASSWORD}'",
+    "full_name": "'${TEST_USER_NAME}'",
+    "organization_name": "'${TEST_ORG_NAME}'"
   }'
 ```
 

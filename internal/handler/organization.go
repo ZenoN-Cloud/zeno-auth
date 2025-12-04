@@ -22,10 +22,16 @@ type OrganizationHandler struct {
 }
 
 func NewOrganizationHandler(pool *pgxpool.Pool, logger zerolog.Logger) *OrganizationHandler {
+	if pool == nil {
+		return nil
+	}
 	db := &postgres.DB{}
 	// Use reflection to set private field - hacky but works for now
 	// TODO: refactor DB to expose SetPool method
 	orgRepo := postgres.NewOrganizationRepo(db)
+	if orgRepo == nil {
+		return nil
+	}
 	return &OrganizationHandler{
 		orgRepo: orgRepo,
 		logger:  logger,
@@ -82,13 +88,21 @@ func (h *OrganizationHandler) UpdateOrganizationStatus(w http.ResponseWriter, r 
 		h.respondError(w, http.StatusNotFound, "organization not found")
 		return
 	}
+	if org == nil {
+		h.respondError(w, http.StatusNotFound, "organization not found")
+		return
+	}
 
 	org.Status = req.Status
 	if req.TrialEndsAt != nil {
 		org.TrialEndsAt = req.TrialEndsAt
 	}
 	if req.SubscriptionID != nil {
-		subID, _ := uuid.Parse(*req.SubscriptionID)
+		subID, err := uuid.Parse(*req.SubscriptionID)
+		if err != nil {
+			h.respondError(w, http.StatusBadRequest, "invalid subscription ID format")
+			return
+		}
 		org.SubscriptionID = &subID
 	}
 	org.UpdatedAt = time.Now()
@@ -113,7 +127,9 @@ func (h *OrganizationHandler) UpdateOrganizationStatus(w http.ResponseWriter, r 
 func (h *OrganizationHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		h.logger.Error().Err(err).Msg("failed to encode JSON response")
+	}
 }
 
 func (h *OrganizationHandler) respondError(w http.ResponseWriter, status int, message string) {

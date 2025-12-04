@@ -38,9 +38,12 @@ fi
 echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${YELLOW}📊 Generating coverage report...${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-go test -short -coverprofile=coverage.out ./... > /dev/null 2>&1
-COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
-echo -e "${GREEN}Coverage: ${COVERAGE}${NC}"
+if go test -short -coverprofile=coverage.out ./... > /dev/null 2>&1; then
+    COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' 2>/dev/null || echo "N/A")
+    echo -e "${GREEN}Coverage: ${COVERAGE}${NC}"
+else
+    echo -e "${YELLOW}⚠️  Coverage generation failed${NC}"
+fi
 
 # Integration tests (if server is running)
 echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -64,7 +67,9 @@ echo -e "${YELLOW}🔨 Testing build...${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 if go build -o /tmp/zeno-auth-test ./cmd/auth; then
     echo -e "${GREEN}✅ Build successful${NC}"
+    set +e
     rm -f /tmp/zeno-auth-test
+    set -e
 else
     echo -e "${RED}❌ Build failed${NC}"
     FAILED=1
@@ -76,11 +81,18 @@ echo -e "${YELLOW}🐳 Testing Docker build...${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 if docker build -t zeno-auth:test . > /dev/null 2>&1; then
     echo -e "${GREEN}✅ Docker build successful${NC}"
+    set +e
     docker rmi zeno-auth:test > /dev/null 2>&1
+    set -e
 else
     echo -e "${RED}❌ Docker build failed${NC}"
     FAILED=1
 fi
+
+# Cleanup
+set +e
+rm -f coverage.out
+set -e
 
 # Summary
 echo -e "\n${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

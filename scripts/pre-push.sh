@@ -19,10 +19,12 @@ echo -e "${GREEN}✅ Code formatting OK${NC}"
 
 # Vet
 echo -e "\n${YELLOW}2. Running go vet...${NC}"
-if ! go vet ./... 2>&1 | grep -v "quic-go" > /dev/null; then
+VET_OUTPUT=$(go vet ./... 2>&1 | grep -v "quic-go" || true)
+if [ -z "$VET_OUTPUT" ]; then
     echo -e "${GREEN}✅ Go vet passed${NC}"
 else
     echo -e "${RED}❌ Go vet found issues${NC}"
+    echo "$VET_OUTPUT"
     exit 1
 fi
 

@@ -20,12 +20,21 @@ if gcloud secrets describe zeno-auth-jwt-private-key &> /dev/null; then
     echo "✅ Секрет уже существует"
     gcloud secrets versions list zeno-auth-jwt-private-key --limit=1
 else
+    if [ ! -f "keys/private.pem" ]; then
+        echo "❌ Файл keys/private.pem не найден"
+        echo "Создайте ключи командой: make generate-keys"
+        exit 1
+    fi
     echo "📝 Создаю секрет из keys/private.pem (EU-only)..."
-    gcloud secrets create zeno-auth-jwt-private-key \
+    if gcloud secrets create zeno-auth-jwt-private-key \
         --data-file=keys/private.pem \
         --replication-policy="user-managed" \
-        --locations="europe-west3,europe-west1"
-    echo "✅ Создан (только EU регионы)"
+        --locations="europe-west3,europe-west1" 2>/dev/null; then
+        echo "✅ Создан (только EU регионы)"
+    else
+        echo "❌ Ошибка создания секрета"
+        exit 1
+    fi
 fi
 
 echo ""

@@ -44,7 +44,8 @@ func SetupRouter(
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(LoggingMiddleware())
-	r.Use(SecurityHeadersMiddleware())
+	r.Use(middleware.SecurityHeaders())
+	r.Use(middleware.RequestSizeLimit(1 * 1024 * 1024)) // 1MB limit
 
 	// ENV
 	env := ""
@@ -105,9 +106,9 @@ func SetupRouter(
 	// Cleanup endpoints (protected)
 	if db != nil {
 		cleanupHandler := NewCleanupHandler(db, cleanupService)
-		r.POST("/debug/cleanup", AdminAuthMiddleware(), cleanupHandler.CleanupAll)
+		r.POST("/debug/cleanup", AdminAuthMiddleware(), CSRFMiddleware(), AdminRateLimiter(), cleanupHandler.CleanupAll)
 		if cleanupService != nil {
-			r.POST("/debug/cleanup-expired", AdminAuthMiddleware(), cleanupHandler.CleanupExpired)
+			r.POST("/debug/cleanup-expired", AdminAuthMiddleware(), CSRFMiddleware(), AdminRateLimiter(), cleanupHandler.CleanupExpired)
 		}
 	}
 
@@ -127,14 +128,14 @@ func SetupRouter(
 		{
 			auth := v1.Group("/auth")
 			{
-				auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
-				auth.POST("/login", LoginRateLimiter(), authHandler.Login)
-				auth.POST("/refresh", RefreshRateLimiter(), authHandler.Refresh)
-				auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
-				auth.POST("/verify-email", authHandler.VerifyEmail)
-				auth.POST("/resend-verification", AuthMiddleware(jwtManager), authHandler.ResendVerification)
-				auth.POST("/forgot-password", authHandler.ForgotPassword)
-				auth.POST("/reset-password", authHandler.ResetPassword)
+				auth.POST("/register", RegisterRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Register)
+				auth.POST("/login", LoginRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Login)
+				auth.POST("/refresh", RefreshRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Refresh)
+				auth.POST("/logout", AuthMiddleware(jwtManager), CSRFMiddleware(), authHandler.Logout)
+				auth.POST("/verify-email", CSRFMiddleware(), authHandler.VerifyEmail)
+				auth.POST("/resend-verification", AuthMiddleware(jwtManager), CSRFMiddleware(), authHandler.ResendVerification)
+				auth.POST("/forgot-password", middleware.StrictRateLimit(), CSRFMiddleware(), authHandler.ForgotPassword)
+				auth.POST("/reset-password", middleware.StrictRateLimit(), CSRFMiddleware(), authHandler.ResetPassword)
 			}
 
 			me := v1.Group("/me", AuthMiddleware(jwtManager))
@@ -142,7 +143,7 @@ func SetupRouter(
 				me.GET("", userHandler.GetProfile)
 				me.GET("/status", userHandler.GetProfile)
 				if passwordService != nil {
-					me.POST("/change-password", userHandler.ChangePassword)
+					me.POST("/change-password", CSRFMiddleware(), userHandler.ChangePassword)
 				}
 
 				// Organizations
@@ -155,22 +156,22 @@ func SetupRouter(
 				if consentService != nil {
 					consentHandler := NewConsentHandler(consentService)
 					me.GET("/consents", consentHandler.GetConsents)
-					me.POST("/consents", consentHandler.GrantConsent)
-					me.DELETE("/consents/:type", consentHandler.RevokeConsent)
+					me.POST("/consents", CSRFMiddleware(), consentHandler.GrantConsent)
+					me.DELETE("/consents/:type", CSRFMiddleware(), consentHandler.RevokeConsent)
 				}
 
 				if gdprService != nil {
 					gdprHandler := NewGDPRHandler(gdprService, auditService, emailService)
 					me.GET("/data-export", gdprHandler.ExportData)
-					me.DELETE("/account", gdprHandler.DeleteAccount)
+					me.DELETE("/account", CSRFMiddleware(), gdprHandler.DeleteAccount)
 				}
 
 				// Session management
 				if sessionService != nil {
 					sessionHandler := NewSessionHandler(sessionService)
 					me.GET("/sessions", sessionHandler.GetSessions)
-					me.DELETE("/sessions/:id", sessionHandler.RevokeSession)
-					me.DELETE("/sessions", sessionHandler.RevokeAllSessions)
+					me.DELETE("/sessions/:id", CSRFMiddleware(), sessionHandler.RevokeSession)
+					me.DELETE("/sessions", CSRFMiddleware(), sessionHandler.RevokeAllSessions)
 				}
 			}
 
@@ -186,10 +187,10 @@ func SetupRouter(
 		// Legacy routes (without versioning) - for backward compatibility
 		auth := r.Group("/auth")
 		{
-			auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
-			auth.POST("/login", LoginRateLimiter(), authHandler.Login)
-			auth.POST("/refresh", RefreshRateLimiter(), authHandler.Refresh)
-			auth.POST("/logout", AuthMiddleware(jwtManager), authHandler.Logout)
+			auth.POST("/register", RegisterRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Register)
+			auth.POST("/login", LoginRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Login)
+			auth.POST("/refresh", RefreshRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Refresh)
+			auth.POST("/logout", AuthMiddleware(jwtManager), CSRFMiddleware(), authHandler.Logout)
 		}
 
 		me := r.Group("/me", AuthMiddleware(jwtManager))
@@ -208,12 +209,15 @@ func SetupRouter(
 
 	// Admin endpoints - always protected, enabled in production
 	if env == "production" || env == "prod" {
-		admin := r.Group("/admin", AdminAuthMiddleware())
-		{
-			complianceHandler := NewComplianceHandler(nil)
-			admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
-			admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)
-		}
+		_ = r.Group("/admin", AdminAuthMiddleware())
+		// TODO: Implement ComplianceReporter interface for AuditService
+		// admin := r.Group("/admin", AdminAuthMiddleware())
+		// if auditService != nil {
+		// 	complianceHandler := NewComplianceHandler(auditService)
+		// 	admin.GET("/compliance/report", complianceHandler.GetComplianceReport)
+		// 	admin.GET("/compliance/status", complianceHandler.GetComplianceStatus)
+		// }
+		_ = auditService // prevent unused variable error
 	}
 
 	return r

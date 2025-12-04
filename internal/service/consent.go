@@ -2,11 +2,17 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 	"github.com/google/uuid"
+)
+
+var (
+	ErrInvalidConsentType = errors.New("invalid consent type")
+	ErrEmptyVersion       = errors.New("version cannot be empty")
 )
 
 type ConsentRepository interface {
@@ -27,6 +33,16 @@ func NewConsentService(consentRepo ConsentRepository) *ConsentService {
 }
 
 func (s *ConsentService) GrantConsent(ctx context.Context, userID uuid.UUID, consentType model.ConsentType, version string) error {
+	if userID == uuid.Nil {
+		return ErrInvalidUserID
+	}
+	if consentType == "" {
+		return ErrInvalidConsentType
+	}
+	if version == "" {
+		return ErrEmptyVersion
+	}
+
 	existing, err := s.consentRepo.GetByUserAndType(ctx, userID, consentType)
 	if err != nil {
 		return fmt.Errorf("failed to check existing consent: %w", err)
@@ -58,6 +74,13 @@ func (s *ConsentService) GrantConsent(ctx context.Context, userID uuid.UUID, con
 }
 
 func (s *ConsentService) RevokeConsent(ctx context.Context, userID uuid.UUID, consentType model.ConsentType) error {
+	if userID == uuid.Nil {
+		return ErrInvalidUserID
+	}
+	if consentType == "" {
+		return ErrInvalidConsentType
+	}
+
 	if err := s.consentRepo.Revoke(ctx, userID, consentType); err != nil {
 		return fmt.Errorf("failed to revoke consent: %w", err)
 	}

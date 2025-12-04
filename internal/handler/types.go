@@ -8,14 +8,14 @@ import (
 
 type RegisterRequest struct {
 	Email            string `json:"email" binding:"required,email"`
-	Password         string `json:"password" binding:"required,min=8"`
+	Password         string `json:"password" binding:"required,min=8" log:"-"`
 	FullName         string `json:"full_name" binding:"required"`
 	OrganizationName string `json:"organization_name" binding:"required"`
 }
 
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
+	Password string `json:"password" binding:"required" log:"-"`
 }
 
 type RefreshRequest struct {

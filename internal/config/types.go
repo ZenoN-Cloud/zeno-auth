@@ -21,8 +21,8 @@ type Database struct {
 }
 
 type JWT struct {
-	PrivateKey      string `json:"private_key"`
-	PublicKey       string `json:"public_key"`
+	PrivateKey      string `json:"private_key" log:"-"`
+	PublicKey       string `json:"public_key" log:"-"`
 	AccessTokenTTL  int    `json:"access_token_ttl"`
 	RefreshTokenTTL int    `json:"refresh_token_ttl"`
 }

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 	"github.com/ulule/limiter/v3"
 	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
 	"github.com/ulule/limiter/v3/drivers/store/memory"
@@ -31,7 +32,13 @@ func DefaultRateLimitConfig() RateLimitConfig {
 func NewRateLimiter(rate string) gin.HandlerFunc {
 	rateLimit, err := limiter.NewRateFromFormatted(rate)
 	if err != nil {
-		panic("invalid rate limit format: " + err.Error())
+		// Log the error for debugging
+		log.Error().Err(err).Str("rate", rate).Msg("Invalid rate limit configuration, allowing all requests")
+		// Return a middleware that always allows requests if rate limit config is invalid
+		return func(c *gin.Context) {
+			c.Header("X-RateLimit-Error", "Invalid rate limit configuration")
+			c.Next()
+		}
 	}
 
 	store := memory.NewStore()
@@ -43,15 +50,34 @@ func NewRateLimiter(rate string) gin.HandlerFunc {
 	}))
 
 	return func(c *gin.Context) {
+		// Safely execute middleware with error recovery
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error().Interface("panic", r).Msg("Rate limiter middleware panic")
+				c.Header("X-RateLimit-Error", "Rate limiter error")
+				c.Next()
+			}
+		}()
+
 		middleware(c)
 
-		// Check if rate limit was exceeded
-		if c.Writer.Status() == http.StatusTooManyRequests {
-			c.JSON(http.StatusTooManyRequests, ErrorResponse{
-				Error: "Rate limit exceeded. Please try again later.",
-			})
+		// Check if rate limit was exceeded with proper error handling
+		status := c.Writer.Status()
+		if status == http.StatusTooManyRequests {
+			// Ensure response hasn't been written yet
+			if !c.Writer.Written() {
+				c.JSON(http.StatusTooManyRequests, ErrorResponse{
+					Error: "Rate limit exceeded. Please try again later.",
+				})
+			}
 			c.Abort()
 			return
+		} else if status >= 400 && status < 600 {
+			// Handle other error statuses from rate limiter
+			log.Warn().Int("status", status).Msg("Rate limiter returned error status")
+			if !c.Writer.Written() {
+				c.Header("X-RateLimit-Error", "Rate limiter error")
+			}
 		}
 	}
 }
@@ -78,4 +104,10 @@ func RefreshRateLimiter() gin.HandlerFunc {
 func GeneralAPIRateLimiter() gin.HandlerFunc {
 	config := DefaultRateLimitConfig()
 	return NewRateLimiter(config.GeneralAPIRequests)
+}
+
+// AdminRateLimiter applies strict rate limiting to admin operations
+func AdminRateLimiter() gin.HandlerFunc {
+	// Very strict: 2 requests per minute for destructive admin operations
+	return NewRateLimiter("2-M")
 }

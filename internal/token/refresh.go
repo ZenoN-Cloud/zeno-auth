@@ -32,15 +32,15 @@ func (r *RefreshManager) Generate(ctx context.Context) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func (r *RefreshManager) Hash(ctx context.Context, token string) string {
+func (r *RefreshManager) Hash(ctx context.Context, token string) (string, error) {
 	select {
 	case <-ctx.Done():
-		return ""
+		return "", ctx.Err()
 	default:
 	}
 
 	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:])
+	return hex.EncodeToString(hash[:]), nil
 }
 
 func (r *RefreshManager) CreateToken(
@@ -48,20 +48,25 @@ func (r *RefreshManager) CreateToken(
 	userID, orgID uuid.UUID,
 	token, userAgent, ipAddress string,
 	ttlSeconds int,
-) *model.RefreshToken {
+) (*model.RefreshToken, error) {
 	select {
 	case <-ctx.Done():
-		return nil
+		return nil, ctx.Err()
 	default:
+	}
+
+	tokenHash, err := r.Hash(ctx, token)
+	if err != nil {
+		return nil, err
 	}
 
 	return &model.RefreshToken{
 		UserID:    userID,
 		OrgID:     orgID,
-		TokenHash: r.Hash(ctx, token),
+		TokenHash: tokenHash,
 		UserAgent: userAgent,
 		IPAddress: ipAddress,
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(time.Duration(ttlSeconds) * time.Second),
-	}
+	}, nil
 }

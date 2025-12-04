@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"sort"
 	"sync"
 	"time"
 )
@@ -139,9 +140,14 @@ func (m *Metrics) calculateDurationStats() DurationStats {
 	count := len(m.requestDurations)
 	avg := sum / time.Duration(count)
 
-	p50 := m.requestDurations[count*50/100]
-	p95 := m.requestDurations[count*95/100]
-	p99 := m.requestDurations[count*99/100]
+	// Sort durations for percentile calculation
+	sorted := make([]time.Duration, count)
+	copy(sorted, m.requestDurations)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	p50 := sorted[count*50/100]
+	p95 := sorted[count*95/100]
+	p99 := sorted[count*99/100]
 
 	return DurationStats{
 		Count:   count,

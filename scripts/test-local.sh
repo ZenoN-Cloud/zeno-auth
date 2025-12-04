@@ -46,8 +46,12 @@ REGISTER_RESPONSE=$(curl -s -X POST $BASE_URL/auth/register \
 
 if echo "$REGISTER_RESPONSE" | grep -q '"id"'; then
     echo -e "${GREEN}✓ OK${NC}"
-    USER_ID=$(echo $REGISTER_RESPONSE | grep -o '"id":"[^"]*' | cut -d'"' -f4)
-    echo "   └─ User ID: $USER_ID"
+    USER_ID=$(echo $REGISTER_RESPONSE | grep -o '"id":"[^"]*' | cut -d'"' -f4 2>/dev/null || echo "")
+    if [ -n "$USER_ID" ]; then
+        echo "   └─ User ID: $USER_ID"
+    else
+        echo "   └─ Warning: Could not extract User ID"
+    fi
 else
     echo -e "${RED}✗ FAIL${NC}"
     echo "   └─ Response: $REGISTER_RESPONSE"

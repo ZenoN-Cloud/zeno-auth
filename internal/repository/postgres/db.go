@@ -2,21 +2,26 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/rs/zerolog/log"
 )
 
 type DB struct {
-	pool  *pgxpool.Pool
-	sqlDB *sql.DB
+	pool *pgxpool.Pool
 }
 
 func New(databaseURL string) (*DB, error) {
+	// Validate database URL for path traversal
+	if strings.Contains(databaseURL, "../") || strings.Contains(databaseURL, "..\\") {
+		return nil, errors.New("invalid database URL: path traversal detected")
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -25,9 +30,9 @@ func New(databaseURL string) (*DB, error) {
 		return nil, err
 	}
 
-	// Cloud SQL best practices
-	cfg.MaxConns = 10
-	cfg.MinConns = 1
+	// Standard connection pool configuration
+	cfg.MaxConns = 25
+	cfg.MinConns = 5
 	cfg.HealthCheckPeriod = 30 * time.Second
 	cfg.MaxConnLifetime = time.Hour
 	cfg.MaxConnIdleTime = 30 * time.Minute
@@ -58,18 +63,8 @@ func New(databaseURL string) (*DB, error) {
 		time.Sleep(time.Duration(i) * time.Second)
 	}
 
-	if lastErr != nil && pool == nil {
+	if pool == nil {
 		return nil, errors.New("failed to connect to PostgreSQL after retries: " + lastErr.Error())
-	}
-
-	// Create sql.DB for explicit tx control
-	sqlDB, err := sql.Open("pgx", databaseURL)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := sqlDB.PingContext(ctx); err != nil {
-		return nil, err
 	}
 
 	log.Info().
@@ -78,25 +73,34 @@ func New(databaseURL string) (*DB, error) {
 		Msg("PostgreSQL connection pool initialized")
 
 	return &DB{
-		pool:  pool,
-		sqlDB: sqlDB,
+		pool: pool,
 	}, nil
 }
 
 func (db *DB) Pool() *pgxpool.Pool {
+	if db == nil {
+		return nil
+	}
 	return db.pool
 }
 
-func (db *DB) BeginTx(ctx context.Context) (*sql.Tx, error) {
-	return db.sqlDB.BeginTx(ctx, nil)
+func (db *DB) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	if db == nil || db.pool == nil {
+		return nil, errors.New("database connection is nil")
+	}
+
+	tx, err := db.pool.Begin(ctx)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to begin transaction")
+		return nil, err
+	}
+
+	return tx, nil
 }
 
 func (db *DB) Close() {
 	if db.pool != nil {
 		db.pool.Close()
+		log.Info().Msg("PostgreSQL connection closed")
 	}
-	if db.sqlDB != nil {
-		_ = db.sqlDB.Close()
-	}
-	log.Info().Msg("PostgreSQL connections closed")
 }

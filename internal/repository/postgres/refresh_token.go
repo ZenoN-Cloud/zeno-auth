@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/ZenoN-Cloud/zeno-auth/internal/model"
 )
@@ -15,10 +16,20 @@ type RefreshTokenRepo struct {
 }
 
 func NewRefreshTokenRepo(db *DB) *RefreshTokenRepo {
+	if db == nil {
+		return nil
+	}
 	return &RefreshTokenRepo{db: db}
 }
 
 func (r *RefreshTokenRepo) Create(ctx context.Context, token *model.RefreshToken) error {
+	if r.db == nil || r.db.pool == nil {
+		return sql.ErrConnDone
+	}
+	if token == nil {
+		return sql.ErrNoRows
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -30,7 +41,11 @@ func (r *RefreshTokenRepo) Create(ctx context.Context, token *model.RefreshToken
 	return r.db.pool.QueryRow(ctx, query, token.UserID, token.OrgID, token.TokenHash, token.UserAgent, token.IPAddress, token.CreatedAt, token.ExpiresAt).Scan(&token.ID)
 }
 
-func (r *RefreshTokenRepo) CreateTx(ctx context.Context, tx *sql.Tx, token *model.RefreshToken) error {
+func (r *RefreshTokenRepo) CreateTx(ctx context.Context, tx pgx.Tx, token *model.RefreshToken) error {
+	if tx == nil || token == nil {
+		return sql.ErrNoRows
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -39,10 +54,17 @@ func (r *RefreshTokenRepo) CreateTx(ctx context.Context, tx *sql.Tx, token *mode
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`
 
-	return tx.QueryRowContext(ctx, query, token.UserID, token.OrgID, token.TokenHash, token.UserAgent, token.IPAddress, token.CreatedAt, token.ExpiresAt).Scan(&token.ID)
+	return tx.QueryRow(ctx, query, token.UserID, token.OrgID, token.TokenHash, token.UserAgent, token.IPAddress, token.CreatedAt, token.ExpiresAt).Scan(&token.ID)
 }
 
 func (r *RefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash string) (*model.RefreshToken, error) {
+	if r.db == nil || r.db.pool == nil {
+		return nil, sql.ErrConnDone
+	}
+	if tokenHash == "" {
+		return nil, sql.ErrNoRows
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -50,10 +72,17 @@ func (r *RefreshTokenRepo) GetByTokenHash(ctx context.Context, tokenHash string)
 
 	token := &model.RefreshToken{}
 	err := r.db.pool.QueryRow(ctx, query, tokenHash).Scan(&token.ID, &token.UserID, &token.OrgID, &token.TokenHash, &token.UserAgent, &token.IPAddress, &token.CreatedAt, &token.ExpiresAt, &token.RevokedAt)
-	return token, err
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
 }
 
 func (r *RefreshTokenRepo) RevokeByUserID(ctx context.Context, userID uuid.UUID) error {
+	if r.db == nil || r.db.pool == nil {
+		return sql.ErrConnDone
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -63,17 +92,25 @@ func (r *RefreshTokenRepo) RevokeByUserID(ctx context.Context, userID uuid.UUID)
 	return err
 }
 
-func (r *RefreshTokenRepo) RevokeByUserIDTx(ctx context.Context, tx *sql.Tx, userID uuid.UUID) error {
+func (r *RefreshTokenRepo) RevokeByUserIDTx(ctx context.Context, tx pgx.Tx, userID uuid.UUID) error {
+	if tx == nil {
+		return sql.ErrNoRows
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	query := `UPDATE refresh_tokens SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL`
 
-	_, err := tx.ExecContext(ctx, query, userID, time.Now())
+	_, err := tx.Exec(ctx, query, userID, time.Now())
 	return err
 }
 
 func (r *RefreshTokenRepo) RevokeByID(ctx context.Context, id uuid.UUID) error {
+	if r.db == nil || r.db.pool == nil {
+		return sql.ErrConnDone
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -84,6 +121,10 @@ func (r *RefreshTokenRepo) RevokeByID(ctx context.Context, id uuid.UUID) error {
 }
 
 func (r *RefreshTokenRepo) DeleteExpired(ctx context.Context) error {
+	if r.db == nil || r.db.pool == nil {
+		return sql.ErrConnDone
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -95,6 +136,10 @@ func (r *RefreshTokenRepo) DeleteExpired(ctx context.Context) error {
 }
 
 func (r *RefreshTokenRepo) GetActiveByUserID(ctx context.Context, userID uuid.UUID) ([]*model.RefreshToken, error) {
+	if r.db == nil || r.db.pool == nil {
+		return nil, sql.ErrConnDone
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 

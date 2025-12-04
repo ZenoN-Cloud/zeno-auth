@@ -90,7 +90,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			_ = tx.Rollback()
+			_ = tx.Rollback(ctx)
 			panic(r)
 		}
 	}()
@@ -104,7 +104,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 
 	// Create user
 	if err := s.userRepo.CreateTx(ctx, tx, user); err != nil {
-		_ = tx.Rollback()
+		_ = tx.Rollback(ctx)
 		return nil, err
 	}
 
@@ -116,7 +116,7 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	}
 
 	if err := s.orgRepo.CreateTx(ctx, tx, org); err != nil {
-		_ = tx.Rollback()
+		_ = tx.Rollback(ctx)
 		return nil, err
 	}
 
@@ -129,12 +129,12 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	}
 
 	if err := s.membershipRepo.CreateTx(ctx, tx, membership); err != nil {
-		_ = tx.Rollback()
+		_ = tx.Rollback(ctx)
 		return nil, err
 	}
 
 	// Commit transaction
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -171,6 +171,8 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	if err != nil {
 		return "", "", err
 	}
+	// Update user state based on login result
+	needsUpdate := false
 	if !valid {
 		user.FailedLoginAttempts++
 		if user.FailedLoginAttempts >= 5 {
@@ -180,40 +182,33 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 				go func() { _ = s.emailService.SendAccountLockoutNotification(ctx, user.ID, lockUntil) }()
 			}
 		}
-		_ = s.userRepo.Update(ctx, user)
-		return "", "", appErrors.ErrInvalidCredentials
-	}
-
-	// Reset failed attempts on successful login
-	if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
+		needsUpdate = true
+	} else if user.FailedLoginAttempts > 0 || user.LockedUntil != nil {
+		// Reset failed attempts on successful login
 		user.FailedLoginAttempts = 0
 		user.LockedUntil = nil
+		needsUpdate = true
+	}
+
+	if needsUpdate {
 		_ = s.userRepo.Update(ctx, user)
 	}
 
-	// Get user's organizations
-	orgs, err := s.orgRepo.GetByUserID(ctx, user.ID)
-	if err != nil {
-		// Log detailed error for debugging
-		log.Error().Err(err).Str("user_id", user.ID.String()).Msg("Failed to get user organizations")
-		return "", "", err
-	}
-
-	// User must have at least one organization
-	if len(orgs) == 0 {
-		log.Error().Str("user_id", user.ID.String()).Msg("User has no organizations")
+	if !valid {
 		return "", "", appErrors.ErrInvalidCredentials
 	}
 
-	// Use first organization (later can add org selection)
-	orgID := orgs[0].ID
-
-	// Get user's role in organization
-	var roles []string
-	membership, err := s.membershipRepo.GetByUserAndOrg(ctx, user.ID, orgID)
-	if err == nil {
-		roles = []string{string(membership.Role)}
+	// Get user's first active membership (includes org and role)
+	memberships, err := s.membershipRepo.GetByUserID(ctx, user.ID)
+	if err != nil || len(memberships) == 0 {
+		log.Error().Err(err).Str("user_id", user.ID.String()).Msg("User has no active memberships")
+		return "", "", appErrors.ErrInvalidCredentials
 	}
+
+	// Use first active membership
+	membership := memberships[0]
+	orgID := membership.OrgID
+	roles := []string{string(membership.Role)}
 
 	accessToken, err := s.jwtManager.Generate(ctx, user.ID, orgID, roles, s.config.AccessTokenTTL)
 	if err != nil {
@@ -226,8 +221,14 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	}
 
 	// Generate fingerprint for session security
-	fingerprint := token.GenerateFingerprint(userAgent, ipAddress, "")
-	refreshToken := s.refreshManager.CreateToken(ctx, user.ID, orgID, refreshTokenStr, userAgent, ipAddress, s.config.RefreshTokenTTL)
+	fingerprint, err := token.GenerateFingerprint(userAgent, ipAddress, "")
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken, err := s.refreshManager.CreateToken(ctx, user.ID, orgID, refreshTokenStr, userAgent, ipAddress, s.config.RefreshTokenTTL)
+	if err != nil {
+		return "", "", err
+	}
 	refreshToken.FingerprintHash = &fingerprint
 	if err := s.refreshRepo.Create(ctx, refreshToken); err != nil {
 		return "", "", err
@@ -237,7 +238,10 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAgent, ipAddress string) (string, error) {
-	tokenHash := s.refreshManager.Hash(ctx, refreshTokenStr)
+	tokenHash, err := s.refreshManager.Hash(ctx, refreshTokenStr)
+	if err != nil {
+		return "", err
+	}
 
 	refreshToken, err := s.refreshRepo.GetByTokenHash(ctx, tokenHash)
 	if err != nil {
@@ -252,7 +256,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAge
 	}
 
 	if refreshToken.FingerprintHash != nil && *refreshToken.FingerprintHash != "" {
-		currentFingerprint := token.GenerateFingerprint(userAgent, ipAddress, "")
+		currentFingerprint, err := token.GenerateFingerprint(userAgent, ipAddress, "")
+		if err != nil {
+			return "", err
+		}
 		if currentFingerprint != *refreshToken.FingerprintHash {
 			return "", appErrors.ErrInvalidFingerprint
 		}
@@ -261,8 +268,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAge
 	// Get roles if user has organization membership
 	var roles []string
 	if refreshToken.OrgID != uuid.Nil {
-		membership, err := s.membershipRepo.GetByUserAndOrg(ctx, refreshToken.UserID, refreshToken.OrgID)
-		if err == nil {
+		if membership, err := s.membershipRepo.GetByUserAndOrg(ctx, refreshToken.UserID, refreshToken.OrgID); err == nil && membership != nil {
 			roles = []string{string(membership.Role)}
 		}
 	}
@@ -271,4 +277,19 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenStr, userAge
 
 func (s *AuthService) Logout(ctx context.Context, userID uuid.UUID) error {
 	return s.refreshRepo.RevokeByUserID(ctx, userID)
+}
+
+func (s *AuthService) LogoutToken(ctx context.Context, refreshTokenStr string) error {
+	tokenHash, err := s.refreshManager.Hash(ctx, refreshTokenStr)
+	if err != nil {
+		return err
+	}
+	refreshToken, err := s.refreshRepo.GetByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if stdErrors.Is(err, pgx.ErrNoRows) {
+			return appErrors.ErrInvalidCredentials
+		}
+		return err
+	}
+	return s.refreshRepo.RevokeByID(ctx, refreshToken.ID)
 }

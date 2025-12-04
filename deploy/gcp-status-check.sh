@@ -1,7 +1,12 @@
 #!/bin/bash
 # GCP Infrastructure Status Check Script
 
-set -e
+# Check if gcloud is installed
+if ! command -v gcloud >/dev/null 2>&1; then
+    echo "❌ gcloud CLI is not installed"
+    echo "Please install Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
+    exit 1
+fi
 
 # Colors
 RED='\033[0;31m'

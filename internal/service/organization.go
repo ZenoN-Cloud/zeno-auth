@@ -27,6 +27,10 @@ func NewOrganizationService(
 func (s *OrganizationService) Create(ctx context.Context, name string, ownerUserID uuid.UUID) (
 	*model.Organization, error,
 ) {
+	if s.orgRepo == nil || s.membershipRepo == nil {
+		return nil, ErrRepositoryNotInitialized
+	}
+
 	org := &model.Organization{
 		Name:        name,
 		OwnerUserID: ownerUserID,
@@ -45,6 +49,7 @@ func (s *OrganizationService) Create(ctx context.Context, name string, ownerUser
 	}
 
 	if err := s.membershipRepo.Create(ctx, membership); err != nil {
+		// TODO: Implement proper transaction rollback
 		return nil, err
 	}
 

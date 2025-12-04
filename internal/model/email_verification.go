@@ -1,10 +1,13 @@
 package model
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+var ErrEmailVerificationNotFound = errors.New("email verification not found")
 
 type EmailVerification struct {
 	ID         uuid.UUID  `json:"id"`

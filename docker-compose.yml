@@ -1,17 +1,22 @@
+# Security Note: This file uses environment variables to avoid hardcoded credentials
+# Copy .env.example to .env and set your values
+# Run with: docker-compose up
+
 services:
   postgres:
     image: postgres:17-alpine
     container_name: zeno-auth-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: zeno_auth
-      POSTGRES_USER: zeno_auth
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U zeno_auth -d zeno_auth"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -19,8 +24,11 @@ services:
       - zeno-network
 
   zeno-auth:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: zeno-auth-app
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
@@ -30,82 +38,63 @@ services:
       PORT: 8080
       LOG_LEVEL: debug
       LOG_FORMAT: console
-      DATABASE_URL: postgres://zeno_auth:devpassword@postgres:5432/zeno_auth?sslmode=disable
+      DATABASE_URL: ${DATABASE_URL}
       ACCESS_TOKEN_TTL: 1800
       REFRESH_TOKEN_TTL: 1209600
       TIMEZONE: UTC
-      JWT_PRIVATE_KEY: |
-        -----BEGIN PRIVATE KEY-----
-        MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCtURS5/MhZGHfr
-        aQRZebc/veam5QxMLNPijJUYai2aQJQwbpNHcvbb3xc0P6kpnXYKvco7/uxuxq2p
-        xeTIBEjBnmG0tmxvGGLHeyYbe3xkUZBKoNikzj03jnNN5xPi303xe0En+CvhQFkR
-        yxE7qQd3X2SoePLngcb3KleO9EwIFoNDhplDhQQQHxPuYt9hCJy65v/uoXAiRlJE
-        kAZ2f8klJ7pLTfkbYntOP6gJwiEVBPmXy5rviUsPj3meMYBsJNNPrMWJm4cUA2ky
-        3s2JbNCmnXeA3DJUngUepCklsyqlhkyMNeWzK5c9L5s8Y3o+LmCoy3AHkHtrJrZM
-        +kTwEX3XAgMBAAECggEAQicFALpd5DflKcrzOI2vJpq+q2wYhgjENSAQlnmMf2hv
-        x46lE2vrkl+z9SLpV/N8hzwKsVyrdNrLlVXt7XRJKvHffED24W6O4XH9SRcYkxfY
-        uctr9XeswQRTuWPeYMV39Bhl9bIRWZAcjyCRqtJpAaS9AFrt5/ROc6/LLMrNLHZ9
-        ZqpOPa5MkSYX0KqzCIGifyIXIPhVRqmeNYYHIyNN874Ix1NGsc6E2H3uIByI/IDw
-        RypE0S9AbGi40lPO0NCEYCsIaRS7Onb3K0Zzm0w0NvMlLLzkruENfLMP+4eTUbWs
-        MHJI1/bRFo1HFHbOn0wFQvteeYUauzJwEI2Tr9WaDQKBgQDtDaHK6vqizUGH5vrl
-        96q6pGHsMHvlR15/s0dKvufTTyLLKS25k3XHTE/ChMKdlHvqFGqBCfaDiEMh1Y5T
-        ET4HlktmtrRHLx1sgiLUmwlxzRJlGiuOJy4EHubjRbMjP5S0QtymW+jVBZx+SUJI
-        7yWD05qKilO48cvZDhO/EAMyfQKBgQC7K1SBtpyVc0lIBqn9/o1VV1yqTPKzwW3O
-        5vtThw8j4jqI6WsgIHtMRRXIKFZVV0hbo2LHnDmhHlDRZQXXoiCR/J0tbt53MR/0
-        4Rq12CgW7aZF0slfbBkotF69MWlYFfWgzM+BElu5YE6/iSwkZbt410B3z9c9g95j
-        xxa+T9bt4wKBgQDNwhheXmmgqBKqWMYMmFW73XUVotvXnoQayc0mxt/IXZcwypRi
-        0OjZTZapm7ylNL395yyuxqwPbVX/5zK7TWsPANh/1jRS2UVr6uU6rzuaaMr/sKB/
-        qehaMUxtlxEvlj+H28VULNDDHjTAtOvxDIr+isxIVlrnXBF5XKutGsP7rQKBgHGo
-        VU/TiXCDqotvaIkRq9eYDnBn+7XGjxzmTNYjHMGInk0HmYLP1q+xABIk1JBMSWdE
-        ZzaZmrFJTIBrXUndbPPZt8SgH723ehVlIKguU+HgfGjIIHqulPSP2zv+Jl9ULm1w
-        Ec3qTQLcBdXvwXt0v4wZAk//SVBUpJZojloQ945LAoGAZsGEep26WBnw9sFKkxfC
-        ALT6Dz+TEfkPRrKsN10MVAl5JODhM34lgIIkadsmplLSxMzRSuTvZ+/GjBwOM1yy
-        yKfRHYBmjuIuzSDRbGIIkY8bAh59a6gETdMmPL6q4RBfUxhgRgu3axt/I51HFqL0
-        E6+XJ0hEgQ4TzMRglfhSUNk=
-        -----END PRIVATE KEY-----
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY}
     ports:
       - "8080:8080"
     volumes:
       - ./logs:/root/logs
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 5
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - zeno-network
 
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: zeno-auth-pgadmin
+    restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@zeno.local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
       PGADMIN_CONFIG_SERVER_MODE: 'False'
     ports:
       - "5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - zeno-network
 
   zeno-console:
     build:
-      context: /Users/maximviazov/Developer/Web/zeno-console
+      context: ${ZENO_CONSOLE_PATH:-../zeno-console}
       dockerfile: Dockerfile.dev
     container_name: zeno-console-app
+    restart: unless-stopped
     environment:
-      VITE_AUTH_API_URL: http://localhost:8080
+      VITE_AUTH_API_URL: ${VITE_AUTH_API_URL:-http://localhost:8080}
     ports:
       - "5173:5173"
     volumes:
-      - /Users/maximviazov/Developer/Web/zeno-console/src:/app/src
-      - /Users/maximviazov/Developer/Web/zeno-console/public:/app/public
+      - ${ZENO_CONSOLE_PATH:-../zeno-console}/src:/app/src
+      - ${ZENO_CONSOLE_PATH:-../zeno-console}/public:/app/public
     depends_on:
-      - zeno-auth
+      zeno-auth:
+        condition: service_healthy
     networks:
       - zeno-network
 

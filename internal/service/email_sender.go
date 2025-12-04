@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"html"
 	"os"
 
 	"github.com/rs/zerolog/log"
@@ -35,10 +36,10 @@ func NewSendGridEmailSender(frontendBaseURL string) *SendGridEmailSender {
 
 func (s *SendGridEmailSender) SendVerificationEmail(ctx context.Context, toEmail, token string) error {
 	if s.apiKey == "" {
-		log.Warn().Str("to", toEmail).Msg("SendGrid API key not set, skipping email")
+		log.Warn().Str("to", html.EscapeString(toEmail)).Msg("SendGrid API key not set, skipping email")
 		return nil
 	}
-	log.Info().Str("to", toEmail).Str("from", s.fromEmail).Str("api_key_set", "yes").Msg("Sending verification email")
+	log.Info().Str("to", html.EscapeString(toEmail)).Str("from", s.fromEmail).Str("api_key_set", "yes").Msg("Sending verification email")
 
 	verifyURL := fmt.Sprintf("%s#/verify-email?token=%s", s.baseURL, token)
 
@@ -81,7 +82,7 @@ ZenoN Cloud Team
         <p style="color: #999; font-size: 12px;">Best regards,<br>ZenoN Cloud Team</p>
     </div>
 </body>
-</html>`, verifyURL, verifyURL)
+</html>`, html.EscapeString(verifyURL), html.EscapeString(verifyURL))
 
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(s.apiKey)
@@ -93,17 +94,17 @@ ZenoN Cloud Team
 	}
 
 	if response.StatusCode >= 400 {
-		log.Error().Int("status", response.StatusCode).Str("body", response.Body).Str("to", toEmail).Msg("SendGrid returned error")
-		return fmt.Errorf("sendgrid error: %d - %s", response.StatusCode, response.Body)
+		log.Error().Int("status", response.StatusCode).Str("to", html.EscapeString(toEmail)).Msg("SendGrid returned error")
+		return fmt.Errorf("sendgrid error: %d", response.StatusCode)
 	}
 
-	log.Info().Str("to", toEmail).Int("status", response.StatusCode).Msg("Verification email sent")
+	log.Info().Str("to", html.EscapeString(toEmail)).Int("status", response.StatusCode).Msg("Verification email sent")
 	return nil
 }
 
 func (s *SendGridEmailSender) SendPasswordResetEmail(ctx context.Context, toEmail, token string) error {
 	if s.apiKey == "" {
-		log.Warn().Str("to", toEmail).Msg("SendGrid API key not set, skipping email")
+		log.Warn().Str("to", html.EscapeString(toEmail)).Msg("SendGrid API key not set, skipping email")
 		return nil
 	}
 
@@ -148,7 +149,7 @@ ZenoN Cloud Team
         <p style="color: #999; font-size: 12px;">Best regards,<br>ZenoN Cloud Team</p>
     </div>
 </body>
-</html>`, resetURL, resetURL)
+</html>`, html.EscapeString(resetURL), html.EscapeString(resetURL))
 
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(s.apiKey)
@@ -160,17 +161,17 @@ ZenoN Cloud Team
 	}
 
 	if response.StatusCode >= 400 {
-		log.Error().Int("status", response.StatusCode).Str("to", toEmail).Msg("SendGrid returned error")
+		log.Error().Int("status", response.StatusCode).Str("to", html.EscapeString(toEmail)).Msg("SendGrid returned error")
 		return fmt.Errorf("sendgrid error: %d", response.StatusCode)
 	}
 
-	log.Info().Str("to", toEmail).Msg("Password reset email sent")
+	log.Info().Str("to", html.EscapeString(toEmail)).Msg("Password reset email sent")
 	return nil
 }
 
 func (s *SendGridEmailSender) SendPasswordChangedEmail(ctx context.Context, toEmail string) error {
 	if s.apiKey == "" {
-		log.Warn().Str("to", toEmail).Msg("SendGrid API key not set, skipping email")
+		log.Warn().Str("to", html.EscapeString(toEmail)).Msg("SendGrid API key not set, skipping email")
 		return nil
 	}
 
@@ -210,22 +211,22 @@ ZenoN Cloud Team
 
 	response, err := client.Send(message)
 	if err != nil {
-		log.Error().Err(err).Str("to", toEmail).Msg("Failed to send password changed email")
+		log.Error().Err(err).Str("to", html.EscapeString(toEmail)).Msg("Failed to send password changed email")
 		return err
 	}
 
 	if response.StatusCode >= 400 {
-		log.Error().Int("status", response.StatusCode).Str("to", toEmail).Msg("SendGrid returned error")
+		log.Error().Int("status", response.StatusCode).Str("to", html.EscapeString(toEmail)).Msg("SendGrid returned error")
 		return fmt.Errorf("sendgrid error: %d", response.StatusCode)
 	}
 
-	log.Info().Str("to", toEmail).Msg("Password changed email sent")
+	log.Info().Str("to", html.EscapeString(toEmail)).Msg("Password changed email sent")
 	return nil
 }
 
 func (s *SendGridEmailSender) SendAccountLockoutEmail(ctx context.Context, toEmail, lockedUntil string) error {
 	if s.apiKey == "" {
-		log.Warn().Str("to", toEmail).Msg("SendGrid API key not set, skipping email")
+		log.Warn().Str("to", html.EscapeString(toEmail)).Msg("SendGrid API key not set, skipping email")
 		return nil
 	}
 
@@ -261,7 +262,7 @@ ZenoN Cloud Team
         <p style="color: #999; font-size: 12px;">Best regards,<br>ZenoN Cloud Team</p>
     </div>
 </body>
-</html>`, lockedUntil)
+</html>`, html.EscapeString(lockedUntil))
 
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(s.apiKey)

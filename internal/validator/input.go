@@ -85,7 +85,12 @@ func (v *InputValidator) SanitizeEmail(email string) string {
 }
 
 func removeHTMLTags(s string) string {
+	if s == "" {
+		return ""
+	}
+
 	var result strings.Builder
+	result.Grow(len(s))
 	inTag := false
 	depth := 0
 
@@ -97,13 +102,14 @@ func removeHTMLTags(s string) string {
 		}
 		if char == '>' && inTag {
 			depth--
-			if depth == 0 {
+			if depth <= 0 {
 				inTag = false
+				depth = 0
 			}
 			continue
 		}
 		if !inTag {
-			result.WriteRune(char)
+			_, _ = result.WriteRune(char)
 		}
 	}
 
