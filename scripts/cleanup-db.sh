@@ -1,48 +1,66 @@
 #!/bin/bash
-# Скрипт для очистки базы данных через API
+# Скрипт для очистки базы данных в GCP
 
-API_URL="${1:-https://zeno-auth-dev-174992989924.europe-west3.run.app}"
+set -e
 
-echo "🗑️  Очистка базы данных через $API_URL/debug/cleanup"
-echo "⚠️  Это удалит ВСЕ данные!"
-
-# Check API availability
-echo "🔍 Проверка доступности API..."
-if ! curl -s --max-time 10 "$API_URL/health" > /dev/null; then
-    echo "❌ API недоступен: $API_URL"
-    echo "Проверьте URL и состояние сервиса"
+# Check if expect is installed
+if ! command -v expect &> /dev/null; then
+    echo "❌ expect не установлен. Установите: brew install expect"
     exit 1
 fi
-echo "✅ API доступен"
 
-read -p "Продолжить? (yes/no): " confirm
+PROJECT_ID="${PROJECT_ID:-zeno-cy-dev-001}"
+INSTANCE_ID="${INSTANCE_ID:-zeno-auth-db-dev}"
+DB_NAME="${DB_NAME:-zeno_auth}"
+DB_USER="${DB_USER:-zeno_auth}"
+DB_PASSWORD="${DB_PASSWORD:-zte@knp6VXK3xrf3evy}"
+
+echo "🗑️  Очистка базы данных в GCP Cloud SQL"
+echo "Project: $PROJECT_ID"
+echo "Instance: $INSTANCE_ID"
+echo "Database: $DB_NAME"
+echo ""
+echo "⚠️  Это удалит ВСЕ данные из таблиц!"
+echo ""
+
+read -p "Продолжить? (yes/no): " -r confirm
+confirm=$(echo "$confirm" | tr -d '[:space:]')
 
 if [ "$confirm" != "yes" ]; then
-    echo "Отменено"
+    echo "Отменено (введено: '$confirm')"
     exit 0
 fi
 
-# Execute cleanup with proper error handling
-response=$(curl -s -w "\n%{http_code}" -X POST "$API_URL/debug/cleanup" \
-    -H "Content-Type: application/json" \
-    -H "X-Admin-Secret: ${ADMIN_SECRET:-dev-secret}")
+echo ""
+echo "🧹 Очистка таблиц..."
 
-# Extract response body and status code
-http_code=$(echo "$response" | tail -n1)
-response_body=$(echo "$response" | head -n -1)
+# Use expect to automate password input
+expect << 'EXPECT_EOF'
+set timeout 30
+spawn gcloud beta sql connect zeno-auth-db-dev --user=zeno_auth --database=zeno_auth --project=zeno-cy-dev-001
+expect "Password:"
+send "zte@knp6VXK3xrf3evy\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE audit_logs CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE user_consents CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE password_reset_tokens CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE email_verifications CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE refresh_tokens CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE org_memberships CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE organizations CASCADE;\r"
+expect "zeno_auth=>"
+send "TRUNCATE TABLE users CASCADE;\r"
+expect "zeno_auth=>"
+send "\\q\r"
+expect eof
+EXPECT_EOF
 
-echo "HTTP Status: $http_code"
-
-# Check if request was successful
-if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
-    echo "Response:"
-    echo "$response_body" | jq . 2>/dev/null || echo "$response_body"
-    echo ""
-    echo "✅ Очистка базы данных завершена успешно"
-else
-    echo "❌ Ошибка при очистке базы данных"
-    echo "Response:"
-    echo "$response_body" | jq . 2>/dev/null || echo "$response_body"
-    echo ""
-    exit 1
-fi
+echo ""
+echo "✅ Все таблицы очищены"
+echo "✅ Очистка базы данных завершена успешно!"

@@ -82,9 +82,13 @@ local-test: ## Run tests against local environment
 	@./scripts/test-local.sh
 
 # Database
-db-migrate: ## Run database migrations
+db-migrate: ## Run database migrations (local)
 	@echo "Running database migrations..."
-	@./scripts/migrate.sh
+	@goose -dir migrations postgres "postgres://postgres:postgres@localhost:5432/zeno_auth?sslmode=disable" up
+
+db-migrate-gcp: ## Run database migrations on GCP
+	@echo "Running database migrations on GCP..."
+	@./scripts/migrate-gcp.sh
 
 db-reset: ## Reset database (WARNING: destroys all data)
 	@echo "Resetting database..."
