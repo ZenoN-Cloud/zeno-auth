@@ -20,6 +20,7 @@ type PasswordResetRepository interface {
 	Create(ctx context.Context, token *model.PasswordResetToken) error
 	GetByTokenHash(ctx context.Context, tokenHash string) (*model.PasswordResetToken, error)
 	MarkAsUsed(ctx context.Context, id uuid.UUID) error
+	ResetPasswordTx(ctx context.Context, user *model.User, tokenID uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 	DeleteByUserID(ctx context.Context, userID uuid.UUID) error
 }
@@ -135,20 +136,11 @@ func (s *PasswordResetService) ResetPassword(ctx context.Context, resetToken, ne
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update password
 	user.PasswordHash = newHash
-	if err := s.userRepo.Update(ctx, user); err != nil {
-		return fmt.Errorf("failed to update password: %w", err)
-	}
 
-	// Mark token as used
-	if err := s.resetRepo.MarkAsUsed(ctx, resetRecord.ID); err != nil {
-		return fmt.Errorf("failed to mark token as used: %w", err)
-	}
-
-	// Revoke all refresh tokens
-	if err := s.refreshRepo.RevokeByUserID(ctx, user.ID); err != nil {
-		return fmt.Errorf("failed to revoke tokens: %w", err)
+	// Execute all operations in transaction
+	if err := s.resetRepo.ResetPasswordTx(ctx, user, resetRecord.ID); err != nil {
+		return fmt.Errorf("failed to reset password: %w", err)
 	}
 
 	// Audit log

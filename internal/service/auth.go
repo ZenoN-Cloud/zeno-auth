@@ -191,7 +191,9 @@ func (s *AuthService) Login(ctx context.Context, email, password, userAgent, ipA
 	}
 
 	if needsUpdate {
-		_ = s.userRepo.Update(ctx, user)
+		if err := s.userRepo.Update(ctx, user); err != nil {
+			log.Error().Err(err).Str("user_id", user.ID.String()).Msg("Failed to update user login state")
+		}
 	}
 
 	if !valid {

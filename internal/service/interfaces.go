@@ -39,6 +39,7 @@ type UserRepository interface {
 
 type OrganizationRepository interface {
 	Create(ctx context.Context, org *model.Organization) error
+	CreateWithMembership(ctx context.Context, org *model.Organization, membership *model.OrgMembership) error
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Organization, error)
 	GetByUserID(ctx context.Context, userID uuid.UUID) ([]*model.Organization, error)
 	Update(ctx context.Context, org *model.Organization) error

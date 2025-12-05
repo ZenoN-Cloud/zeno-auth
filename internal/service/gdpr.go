@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"time"
 
@@ -125,9 +126,14 @@ func (s *GDPRService) DeleteUserAccount(ctx context.Context, userID uuid.UUID) e
 	}
 
 	// Anonymize user data
-	user.Email = fmt.Sprintf("deleted_%s@deleted.local", userID.String())
+	user.Email = fmt.Sprintf("deleted_%d_%s@deleted.local", time.Now().Unix(), userID.String())
 	user.FullName = "Deleted User"
-	user.PasswordHash = uuid.New().String()
+	// Generate cryptographically secure random hash
+	randomBytes := make([]byte, 32)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return fmt.Errorf("failed to generate random hash: %w", err)
+	}
+	user.PasswordHash = fmt.Sprintf("$deleted$%x", randomBytes)
 	user.IsActive = false
 
 	if err := s.userRepo.UpdateTx(ctx, tx, user); err != nil {
@@ -152,7 +158,7 @@ func (s *GDPRService) DeleteUserAccount(ctx context.Context, userID uuid.UUID) e
 	return nil
 }
 
-func (s *GDPRService) DeleteOrganizationData(ctx context.Context, orgID uuid.UUID) error {
+func (s *GDPRService) DeleteOrganizationData(_ context.Context, _ uuid.UUID) error {
 	// Organization data deletion is handled by cascade in database
 	// Audit logs are kept for compliance
 	return nil

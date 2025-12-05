@@ -37,10 +37,6 @@ func (s *OrganizationService) Create(ctx context.Context, name string, ownerUser
 		Status:      "active",
 	}
 
-	if err := s.orgRepo.Create(ctx, org); err != nil {
-		return nil, err
-	}
-
 	membership := &model.OrgMembership{
 		UserID:   ownerUserID,
 		OrgID:    org.ID,
@@ -48,8 +44,8 @@ func (s *OrganizationService) Create(ctx context.Context, name string, ownerUser
 		IsActive: true,
 	}
 
-	if err := s.membershipRepo.Create(ctx, membership); err != nil {
-		// TODO: Implement proper transaction rollback
+	// Create org and membership atomically
+	if err := s.orgRepo.CreateWithMembership(ctx, org, membership); err != nil {
 		return nil, err
 	}
 

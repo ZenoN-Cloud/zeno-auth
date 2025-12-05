@@ -121,6 +121,37 @@ func (r *OrganizationRepo) GetByUserID(ctx context.Context, userID uuid.UUID) ([
 	return orgs, nil
 }
 
+func (r *OrganizationRepo) CreateWithMembership(ctx context.Context, org *model.Organization, membership *model.OrgMembership) error {
+	tx, err := r.db.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+
+	now := time.Now()
+	org.CreatedAt = now
+	org.UpdatedAt = now
+
+	orgQuery := `INSERT INTO organizations (name, owner_user_id, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	if err = tx.QueryRow(ctx, orgQuery, org.Name, org.OwnerUserID, org.Status, org.CreatedAt, org.UpdatedAt).Scan(&org.ID); err != nil {
+		return err
+	}
+
+	membership.OrgID = org.ID
+	membership.CreatedAt = now
+
+	membershipQuery := `INSERT INTO org_memberships (user_id, org_id, role, is_active, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+	if err = tx.QueryRow(ctx, membershipQuery, membership.UserID, membership.OrgID, membership.Role, membership.IsActive, membership.CreatedAt).Scan(&membership.ID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (r *OrganizationRepo) Update(ctx context.Context, org *model.Organization) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
