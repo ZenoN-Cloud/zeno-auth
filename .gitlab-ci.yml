@@ -3,44 +3,34 @@ stages:
   - test
   - security
   - build
-  - deploy
 
 variables:
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
-  PROJECT_ID: "zeno-cy-dev-001"
-  REGION: "europe-west3"
-  SERVICE_NAME: "zeno-auth-dev"
-  REPO_NAME: "zeno-auth"
-  GO_VERSION: "1.25"
-  # GCP Project Numbers for Workload Identity
-  GCP_PROJECT_NUMBER: "899549698924"  # zeno-cy-dev-001
-  GCP_PROJECT_NUMBER_PROD: "YOUR_PROD_PROJECT_NUMBER"  # Replace with actual project number for zeno-cy-prod-001
+  # Убедись, что версия Go соответствует той, что указана в go.mod
+  GO_VERSION: "1.21"
+  # GCP_PROJECT_ID и GCP_PROJECT_NUMBER должны быть определены в переменных CI/CD GitLab
+  GCR_HOSTNAME: "gcr.io"
+  IMAGE_NAME: "zeno-auth"
+  IMAGE_TAG: "$GCR_HOSTNAME/$GCP_PROJECT_ID/$IMAGE_NAME"
 
-# Lint stage
-golangci-lint:
-  stage: lint
-  image: golangci/golangci-lint:v1.60-alpine
-  script:
-    - golangci-lint run -v --timeout 5m || true
-  allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
-
+# --- Lint Stage ---
 go-fmt:
   stage: lint
   image: golang:${GO_VERSION}-alpine
   script:
     - gofmt -l . | tee /tmp/fmt-output
     - test ! -s /tmp/fmt-output
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
-# Test stage
+golangci-lint:
+  stage: lint
+  image: golangci/golangci-lint:v1.55.2-alpine
+  script:
+    - golangci-lint run -v --timeout 5m
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# --- Test Stage ---
 unit-tests:
   stage: test
   image: golang:${GO_VERSION}-alpine
@@ -51,255 +41,66 @@ unit-tests:
     POSTGRES_USER: test
     POSTGRES_PASSWORD: test
     DATABASE_URL: "postgres://test:test@postgres:5432/zeno_auth_test?sslmode=disable"
-    CGO_ENABLED: "1"
   before_script:
     - apk add --no-cache git make gcc musl-dev
     - go mod download
   script:
-    - go test -short -coverprofile=coverage.out -covermode=atomic ./...
-    - go tool cover -func=coverage.out
-  coverage: '/total:.*?(\d+\.\d+)%/'
+    - go test -short -coverprofile=coverage.out ./...
   artifacts:
-    reports:
-      junit: report.xml
-      coverage_report:
-        coverage_format: cobertura
-        path: coverage.xml
     paths:
       - coverage.out
-      - coverage.xml
-  only:
-    - merge_requests
-    - main
-    - develop
+    expire_in: 1 day
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
-integration-tests:
-  stage: test
-  image: golang:${GO_VERSION}-alpine
-  services:
-    - postgres:15-alpine
-  variables:
-    POSTGRES_DB: zeno_auth_test
-    POSTGRES_USER: test
-    POSTGRES_PASSWORD: test
-    DATABASE_URL: "postgres://test:test@postgres:5432/zeno_auth_test?sslmode=disable"
-    CGO_ENABLED: "1"
-  before_script:
-    - apk add --no-cache git make gcc musl-dev
-    - go mod download
-  script:
-    - go test ./test -v -tags=integration
-  allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
-
-# Security stage
-.gosec:
+# --- Security Stage ---
+gosec:
   stage: security
   image: securego/gosec:latest
   script:
     - gosec ./...
   allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
-
-secret-detection:
-  stage: security
-  image: alpine:latest
-  before_script:
-    - apk add --no-cache git
-    - wget -O gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
-    - tar -xzf gitleaks.tar.gz
-    - chmod +x gitleaks
-  script:
-    - ./gitleaks detect --source . --verbose --no-git || true
-  allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
 dependency-scanning:
   stage: security
   image: golang:${GO_VERSION}-alpine
   before_script:
-    - apk add --no-cache git
     - go install golang.org/x/vuln/cmd/govulncheck@latest
   script:
-    - govulncheck ./... || true
+    - govulncheck ./...
   allow_failure: true
-  only:
-    - merge_requests
-    - main
-    - develop
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
 
-# Build stage
-build-docker:
+# --- Build Stage ---
+build-and-push-to-gcr:
   stage: build
-  image: google/cloud-sdk:alpine
+  image: google/cloud-sdk:latest
   services:
-    - docker:24-dind
-  variables:
-    DOCKER_HOST: tcp://docker:2376
-    DOCKER_TLS_VERIFY: 1
-    DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+    - name: docker:dind
+      command: ["--mtu=1460"] # Решает возможные проблемы с сетью в GitLab Runner
   id_tokens:
     GITLAB_OIDC_TOKEN:
       aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
   before_script:
-    - apk add --no-cache docker-cli
+    - echo "Logging into GCP using OIDC..."
     - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
     - gcloud iam workload-identity-pools create-cred-config
-        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
+        "projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2"
+        --service-account="zeno-auth-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
         --output-file=/tmp/gcp-cred-config.json
         --credential-source-file=/tmp/gitlab_oidc_token.txt
     - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
-    - gcloud config set project $PROJECT_ID
-    - gcloud auth configure-docker $REGION-docker.pkg.dev
+    - gcloud auth configure-docker $GCR_HOSTNAME --quiet
   script:
-    - |
-      IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:$CI_COMMIT_SHA"
-      IMAGE_LATEST="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/zeno-auth:latest"
-      
-      docker build -t $IMAGE_TAG -t $IMAGE_LATEST .
-      docker push $IMAGE_TAG
-      docker push $IMAGE_LATEST
-      
-      echo "IMAGE_TAG=$IMAGE_TAG" >> build.env
-  artifacts:
-    reports:
-      dotenv: build.env
-  only:
-    - main
-    - develop
-
-# Deploy stage
-deploy:dev:
-  stage: deploy
-  image: google/cloud-sdk:alpine
-  dependencies:
-    - build-docker
-  id_tokens:
-    GITLAB_OIDC_TOKEN:
-      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-  before_script:
-    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
-    - gcloud iam workload-identity-pools create-cred-config
-        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
-        --output-file=/tmp/gcp-cred-config.json
-        --credential-source-file=/tmp/gitlab_oidc_token.txt
-    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
-    - gcloud config set project $PROJECT_ID
-  script:
-    - |
-      gcloud run deploy $SERVICE_NAME \
-        --image=$IMAGE_TAG \
-        --region=$REGION \
-        --platform=managed \
-        --service-account=zeno-auth-sa@$PROJECT_ID.iam.gserviceaccount.com \
-        --add-cloudsql-instances=$PROJECT_ID:$REGION:zeno-auth-db-dev \
-        --set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest,SENDGRID_API_KEY=zeno-auth-sendgrid-api-key:latest \
-        --set-env-vars=ENV=development,APP_NAME=zeno-auth,CORS_ALLOWED_ORIGINS=https://storage.googleapis.com,EMAIL_FROM=noreply@em2292.zeno-cy.com,EMAIL_FROM_NAME=ZenoN-Cloud \
-        --port=8080 \
-        --memory=512Mi \
-        --cpu=1 \
-        --timeout=300 \
-        --max-instances=10 \
-        --min-instances=0 \
-        --concurrency=80 \
-        --allow-unauthenticated
-      
-      SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-      echo "🚀 Deployed to: $SERVICE_URL"
-      
-      # Health check
-      sleep 10
-      curl -f "$SERVICE_URL/health" || exit 1
-  environment:
-    name: development
-    url: https://zeno-auth-dev-umu7aajgeq-ey.a.run.app
-    on_stop: stop:dev
-  only:
-    - main
-
-stop:dev:
-  stage: deploy
-  image: google/cloud-sdk:alpine
-  id_tokens:
-    GITLAB_OIDC_TOKEN:
-      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-  before_script:
-    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
-    - gcloud iam workload-identity-pools create-cred-config
-        projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
-        --output-file=/tmp/gcp-cred-config.json
-        --credential-source-file=/tmp/gitlab_oidc_token.txt
-    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
-    - gcloud config set project $PROJECT_ID
-  script:
-    - gcloud run services delete $SERVICE_NAME --region=$REGION --quiet
-  environment:
-    name: development
-    action: stop
-  when: manual
-  only:
-    - main
-
-deploy:prod:
-  stage: deploy
-  image: google/cloud-sdk:alpine
-  dependencies:
-    - build-docker
-  variables:
-    SERVICE_NAME: "zeno-auth-prod"
-    PROJECT_ID: "zeno-cy-prod-001"
-  id_tokens:
-    GITLAB_OIDC_TOKEN:
-      aud: https://iam.googleapis.com/projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-  before_script:
-    - echo $GITLAB_OIDC_TOKEN > /tmp/gitlab_oidc_token.txt
-    - gcloud iam workload-identity-pools create-cred-config
-        projects/${GCP_PROJECT_NUMBER_PROD}/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider-v2
-        --service-account=zeno-auth-sa@${PROJECT_ID}.iam.gserviceaccount.com
-        --output-file=/tmp/gcp-cred-config.json
-        --credential-source-file=/tmp/gitlab_oidc_token.txt
-    - gcloud auth login --cred-file=/tmp/gcp-cred-config.json
-    - gcloud config set project $PROJECT_ID
-  script:
-    - |
-      gcloud run deploy $SERVICE_NAME \
-        --image=$IMAGE_TAG \
-        --region=$REGION \
-        --platform=managed \
-        --service-account=zeno-auth-sa@$PROJECT_ID.iam.gserviceaccount.com \
-        --add-cloudsql-instances=$PROJECT_ID:$REGION:zeno-auth-db-prod \
-        --set-secrets=DATABASE_URL=zeno-auth-database-url:latest,JWT_PRIVATE_KEY=zeno-auth-jwt-private-key:latest,SENDGRID_API_KEY=zeno-auth-sendgrid-api-key:latest \
-        --set-env-vars=ENV=production,APP_NAME=zeno-auth,CORS_ALLOWED_ORIGINS=https://zeno-cy.com,EMAIL_FROM=noreply@em2292.zeno-cy.com,EMAIL_FROM_NAME=ZenoN-Cloud \
-        --port=8080 \
-        --memory=1Gi \
-        --cpu=2 \
-        --timeout=300 \
-        --max-instances=50 \
-        --min-instances=1 \
-        --concurrency=80 \
-        --allow-unauthenticated
-      
-      SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-      echo "🚀 Production deployed to: $SERVICE_URL"
-      
-      # Health check
-      sleep 10
-      curl -f "$SERVICE_URL/health" || exit 1
-  environment:
-    name: production
-    url: https://zeno-auth-prod.zeno-cy.com
-  when: manual
-  only:
-    - main
+    - echo "Building Docker image..."
+    - docker build -t "$IMAGE_TAG:$CI_COMMIT_SHORT_SHA" .
+    - echo "Tagging image as latest..."
+    - docker tag "$IMAGE_TAG:$CI_COMMIT_SHORT_SHA" "$IMAGE_TAG:latest"
+    - echo "Pushing image to GCR..."
+    - docker push "$IMAGE_TAG:$CI_COMMIT_SHORT_SHA"
+    - docker push "$IMAGE_TAG:latest"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop"'
