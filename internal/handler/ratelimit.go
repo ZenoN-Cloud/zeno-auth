@@ -10,6 +10,18 @@ import (
 	"github.com/ulule/limiter/v3/drivers/store/memory"
 )
 
+type statusResetWriter struct {
+	gin.ResponseWriter
+}
+
+func (w *statusResetWriter) WriteHeader(code int) {
+	// Don't write error status from rate limiter
+	if code >= 400 && code < 600 {
+		return
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
 // RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
 	LoginAttempts      string // e.g., "5-M" = 5 requests per minute
@@ -73,11 +85,11 @@ func NewRateLimiter(rate string) gin.HandlerFunc {
 			c.Abort()
 			return
 		} else if status >= 400 && status < 600 {
-			// Handle other error statuses from rate limiter
-			log.Warn().Int("status", status).Msg("Rate limiter returned error status")
-			if !c.Writer.Written() {
-				c.Header("X-RateLimit-Error", "Rate limiter error")
-			}
+			// Handle other error statuses from rate limiter - just log and continue
+			log.Warn().Int("status", status).Msg("Rate limiter returned error status, allowing request")
+			c.Header("X-RateLimit-Error", "Rate limiter error")
+			// Reset status to allow request to continue
+			c.Writer = &statusResetWriter{ResponseWriter: c.Writer}
 		}
 	}
 }
