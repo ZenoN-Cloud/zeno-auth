@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# Build DATABASE_URL from components if not provided
+if [ -z "${DATABASE_URL}" ] && [ -n "${DB_USER}" ] && [ -n "${DB_NAME}" ] && [ -n "${DB_HOST}" ] && [ -n "${DB_PASSWORD}" ]; then
+  # URL-encode password for special characters
+  ENCODED_PASSWORD=$(printf '%s' "${DB_PASSWORD}" | jq -sRr @uri)
+  export DATABASE_URL="postgres://${DB_USER}:${ENCODED_PASSWORD}@/${DB_NAME}?host=${DB_HOST}"
+fi
+
 echo "========================================"
 echo "  Starting zeno-auth"
 echo "========================================"

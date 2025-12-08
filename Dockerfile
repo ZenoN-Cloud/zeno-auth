@@ -31,7 +31,8 @@ RUN apk --no-cache add \
     curl \
     wget \
     tzdata \
-    libc6-compat
+    libc6-compat \
+    jq
 
 # Install golang-migrate (pinned version)
 ENV MIGRATE_VERSION=v4.17.0

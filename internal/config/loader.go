@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -38,6 +39,43 @@ func Load() (*Config, error) {
 			Format: getEnv("LOG_FORMAT", "json"),
 			File:   getEnv("LOG_FILE", "logs/app.log"),
 		},
+	}
+
+	// If DATABASE_URL is not set, try to construct it from individual parts.
+	// This is useful for environments like Google Cloud Run where secrets are mounted as env vars.
+	if cfg.Database.URL == "" {
+		dbUser := getEnv("DB_USER", "")
+		dbPass := getEnv("DB_PASSWORD", "") // This will come from Secret Manager
+		dbName := getEnv("DB_NAME", "zeno_auth")
+		dbHost := getEnv("DB_HOST", "") // e.g., "localhost" or a Cloud SQL socket path like "/cloudsql/project:region:instance"
+		dbPort := getEnv("DB_PORT", "5432")
+		dbSSLMode := getEnv("DB_SSL_MODE", "disable") // "disable", "require", "verify-full"
+
+		if dbUser != "" && dbPass != "" && dbHost != "" {
+			// URL-encode the password to handle special characters
+			encodedPass := url.QueryEscape(dbPass)
+
+			// Check if the host is a Cloud SQL socket path.
+			if strings.HasPrefix(dbHost, "/") {
+				// Format for Cloud SQL socket: postgresql://user:password@/dbname?host=/cloudsql/project-id:region:instance-id
+				cfg.Database.URL = fmt.Sprintf("postgresql://%s:%s@/%s?host=%s",
+					dbUser,
+					encodedPass,
+					dbName,
+					dbHost,
+				)
+			} else {
+				// Format for standard TCP connection: postgresql://user:password@host:port/dbname?sslmode=...
+				cfg.Database.URL = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+					dbUser,
+					encodedPass,
+					dbHost,
+					dbPort,
+					dbName,
+					dbSSLMode,
+				)
+			}
+		}
 	}
 
 	if err := validate(cfg); err != nil {
