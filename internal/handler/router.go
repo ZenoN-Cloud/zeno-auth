@@ -128,8 +128,8 @@ func SetupRouter(
 		{
 			auth := v1.Group("/auth")
 			{
-				auth.POST("/register", RegisterRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Register)
-				auth.POST("/login", LoginRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Login)
+				auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
+				auth.POST("/login", LoginRateLimiter(), authHandler.Login)
 				auth.POST("/refresh", RefreshRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Refresh)
 				auth.POST("/logout", AuthMiddleware(jwtManager), CSRFMiddleware(), authHandler.Logout)
 				auth.POST("/verify-email", CSRFMiddleware(), authHandler.VerifyEmail)
@@ -187,8 +187,8 @@ func SetupRouter(
 		// Legacy routes (without versioning) - for backward compatibility
 		auth := r.Group("/auth")
 		{
-			auth.POST("/register", RegisterRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Register)
-			auth.POST("/login", LoginRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Login)
+			auth.POST("/register", RegisterRateLimiter(), authHandler.Register)
+			auth.POST("/login", LoginRateLimiter(), authHandler.Login)
 			auth.POST("/refresh", RefreshRateLimiter(), OriginCheckMiddleware(corsOrigins), CSRFMiddleware(), authHandler.Refresh)
 			auth.POST("/logout", AuthMiddleware(jwtManager), CSRFMiddleware(), authHandler.Logout)
 		}

@@ -172,6 +172,7 @@ func OriginCheckMiddleware(allowedOrigins []string) gin.HandlerFunc {
 		if origin != "" {
 			originURL, err := url.Parse(origin)
 			if err != nil {
+				log.Warn().Str("origin", origin).Msg("Invalid origin format")
 				c.JSON(http.StatusForbidden, ErrorResponse{Error: "Invalid origin"})
 				c.Abort()
 				return
@@ -188,6 +189,7 @@ func OriginCheckMiddleware(allowedOrigins []string) gin.HandlerFunc {
 			}
 
 			if !allowed {
+				log.Warn().Str("origin", origin).Str("origin_host", originURL.Host).Strs("allowed_origins", allowedOrigins).Msg("Origin not allowed")
 				c.JSON(http.StatusForbidden, ErrorResponse{Error: "Origin not allowed"})
 				c.Abort()
 				return
