@@ -5,6 +5,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/ZenoN-Cloud/zeno-auth/internal/client"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/config"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/metrics"
 	"github.com/ZenoN-Cloud/zeno-auth/internal/repository/postgres"
@@ -75,10 +76,21 @@ func BuildContainer(cfg *config.Config) (*Container, error) {
 	serviceConfig := service.NewConfig(cfg)
 	container.AuditService = service.NewAuditService(auditRepo)
 	container.EmailService = service.NewEmailService(emailVerificationRepo, userRepo, container.AuditService, cfg.FrontendBaseURL)
+
+	// Initialize billing client (optional)
+	var billingClient service.BillingClient
+	billingServiceURL := cfg.GetBillingServiceURL()
+	if billingServiceURL != "" {
+		billingClient = client.NewBillingClient(billingServiceURL)
+		log.Info().Str("url", billingServiceURL).Msg("Billing client initialized")
+	} else {
+		log.Warn().Msg("Billing service URL not configured, trial subscriptions will not be created automatically")
+	}
+
 	container.AuthService = service.NewAuthService(
 		userRepo, orgRepo, membershipRepo, refreshRepo,
 		jwtManager, container.RefreshManager, container.PasswordManager,
-		container.EmailService, serviceConfig, db,
+		container.EmailService, billingClient, serviceConfig, db,
 	)
 	container.UserService = service.NewUserService(userRepo, membershipRepo)
 	container.ConsentService = service.NewConsentService(consentRepo)

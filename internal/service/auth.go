@@ -18,6 +18,10 @@ import (
 	"github.com/ZenoN-Cloud/zeno-auth/internal/validator"
 )
 
+type BillingClient interface {
+	CreateTrialSubscription(ctx context.Context, orgID uuid.UUID) error
+}
+
 type AuthService struct {
 	userRepo        repository.UserRepository
 	orgRepo         repository.OrganizationRepository
@@ -27,6 +31,7 @@ type AuthService struct {
 	refreshManager  *token.RefreshManager
 	passwordManager token.PasswordHasher
 	emailService    *EmailService
+	billingClient   BillingClient
 	config          *Config
 	db              *postgres.DB
 }
@@ -40,6 +45,7 @@ func NewAuthService(
 	refreshManager *token.RefreshManager,
 	passwordManager token.PasswordHasher,
 	emailService *EmailService,
+	billingClient BillingClient,
 	config *Config,
 	db *postgres.DB,
 ) *AuthService {
@@ -52,6 +58,7 @@ func NewAuthService(
 		refreshManager:  refreshManager,
 		passwordManager: passwordManager,
 		emailService:    emailService,
+		billingClient:   billingClient,
 		config:          config,
 		db:              db,
 	}
@@ -136,6 +143,16 @@ func (s *AuthService) Register(ctx context.Context, email, password, fullName, o
 	// Commit transaction
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+
+	// Create trial subscription in billing service (async, don't fail registration)
+	if s.billingClient != nil {
+		go func() {
+			bgCtx := context.Background()
+			if err := s.billingClient.CreateTrialSubscription(bgCtx, org.ID); err != nil {
+				log.Error().Err(err).Str("org_id", org.ID.String()).Msg("Failed to create trial subscription")
+			}
+		}()
 	}
 
 	// Send email verification (outside transaction)

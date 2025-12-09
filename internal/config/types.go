@@ -1,14 +1,15 @@
 package config
 
 type Config struct {
-	Env             string   `json:"env"`
-	AppName         string   `json:"app_name"`
-	Timezone        string   `json:"timezone"`
-	FrontendBaseURL string   `json:"frontend_base_url"`
-	Server          Server   `json:"server"`
-	Database        Database `json:"database"`
-	JWT             JWT      `json:"jwt"`
-	Log             Log      `json:"log"`
+	Env               string   `json:"env"`
+	AppName           string   `json:"app_name"`
+	Timezone          string   `json:"timezone"`
+	FrontendBaseURL   string   `json:"frontend_base_url"`
+	BillingServiceURL string   `json:"billing_service_url"`
+	Server            Server   `json:"server"`
+	Database          Database `json:"database"`
+	JWT               JWT      `json:"jwt"`
+	Log               Log      `json:"log"`
 }
 
 type Server struct {
@@ -41,4 +42,9 @@ func (c *Config) GetCORSOrigins() []string {
 // GetEnv returns the environment name.
 func (c *Config) GetEnv() string {
 	return c.Env
+}
+
+// GetBillingServiceURL returns the billing service URL.
+func (c *Config) GetBillingServiceURL() string {
+	return c.BillingServiceURL
 }

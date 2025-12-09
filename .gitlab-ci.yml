@@ -6,7 +6,7 @@ stages:
 
 variables:
   # Убедись, что версия Go соответствует той, что указана в go.mod
-  GO_VERSION: "1.21"
+  GO_VERSION: "1.25"
   # GCP_PROJECT_ID и GCP_PROJECT_NUMBER должны быть определены в переменных CI/CD GitLab
   GCR_HOSTNAME: "gcr.io"
   IMAGE_NAME: "zeno-auth"

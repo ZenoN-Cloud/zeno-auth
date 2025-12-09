@@ -17,10 +17,11 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Env:             getEnv("ENV", "dev"),
-		AppName:         getEnv("APP_NAME", "zeno-auth"),
-		Timezone:        getEnv("TIMEZONE", "UTC"),
-		FrontendBaseURL: getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
+		Env:               getEnv("ENV", "dev"),
+		AppName:           getEnv("APP_NAME", "zeno-auth"),
+		Timezone:          getEnv("TIMEZONE", "UTC"),
+		FrontendBaseURL:   getEnv("FRONTEND_BASE_URL", "http://localhost:5173"),
+		BillingServiceURL: getEnv("BILLING_SERVICE_URL", ""),
 		Server: Server{
 			Port:               getEnv("PORT", "8080"),
 			CORSAllowedOrigins: getEnvSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173"}),

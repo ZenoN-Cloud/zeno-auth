@@ -87,21 +87,17 @@ ZenoN Cloud Team
 	message := mail.NewSingleEmail(from, subject, to, plainTextContent, htmlContent)
 	client := sendgrid.NewSendClient(s.apiKey)
 
-	// TEMPORARY: Log verification URL instead of sending email
-	log.Warn().Str("to", html.EscapeString(toEmail)).Str("verify_url", verifyURL).Msg("VERIFICATION URL (email disabled temporarily)")
+	response, err := client.Send(message)
+	if err != nil {
+		log.Error().Err(err).Str("to", toEmail).Msg("Failed to send verification email")
+		return err
+	}
+	if response.StatusCode >= 400 {
+		log.Error().Int("status", response.StatusCode).Str("to", html.EscapeString(toEmail)).Msg("SendGrid returned error")
+		return fmt.Errorf("sendgrid error: %d", response.StatusCode)
+	}
+	log.Info().Str("to", html.EscapeString(toEmail)).Int("status", response.StatusCode).Msg("Verification email sent")
 	return nil
-
-	// response, err := client.Send(message)
-	// if err != nil {
-	// 	log.Error().Err(err).Str("to", toEmail).Msg("Failed to send verification email")
-	// 	return err
-	// }
-	// if response.StatusCode >= 400 {
-	// 	log.Error().Int("status", response.StatusCode).Str("to", html.EscapeString(toEmail)).Msg("SendGrid returned error")
-	// 	return fmt.Errorf("sendgrid error: %d", response.StatusCode)
-	// }
-	// log.Info().Str("to", html.EscapeString(toEmail)).Int("status", response.StatusCode).Msg("Verification email sent")
-	// return nil
 }
 
 func (s *SendGridEmailSender) SendPasswordResetEmail(ctx context.Context, toEmail, token string) error {
